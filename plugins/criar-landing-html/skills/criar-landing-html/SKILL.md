@@ -1,5 +1,5 @@
 ---
-name: landing-page
+name: criar-landing-html
 description: Cria, publica e edita landing page no Cubo (Cubo Suite / Cubo CRM). Use quando a pessoa pedir uma landing page, página de captura, página de vendas, LP, página de inscrição ou quiser editar/republicar uma página que já existe no Cubo. Lê o site do cliente para pegar a identidade, faz a entrevista, escreve o HTML, cria o formulário que gera a negociação, publica no domínio e mede o PageSpeed.
 ---
 
@@ -26,11 +26,11 @@ enriquecimento de dados e aviso de cookies.
 Todos os scripts rodam com Node, em Windows, macOS e Linux, e ficam em:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/skills/landing-page/scripts
+${CLAUDE_PLUGIN_ROOT}/skills/criar-landing-html/scripts
 ```
 
 Nas referências esse caminho aparece como `<scripts>`. **Escreva-o por inteiro em todo comando**
-(`node "${CLAUDE_PLUGIN_ROOT}/skills/landing-page/scripts/cubo.mjs" check`): variável de shell não
+(`node "${CLAUDE_PLUGIN_ROOT}/skills/criar-landing-html/scripts/cubo.mjs" check`): variável de shell não
 sobrevive de um comando para o outro, e `$CLAUDE_PLUGIN_ROOT` não existe no terminal.
 
 ## O que faz a página não parecer feita por IA
@@ -78,7 +78,7 @@ O porquê de cada uma, com as fontes: [references/conversao.md](references/conve
 ### 0. Requisitos — antes de qualquer pergunta
 
 ```bash
-node --version && node "${CLAUDE_PLUGIN_ROOT}/skills/landing-page/scripts/requisitos.mjs"
+node --version && node "${CLAUDE_PLUGIN_ROOT}/skills/criar-landing-html/scripts/requisitos.mjs"
 ```
 
 Sem Node, ou com algo como `FALTA`, **pare e resolva primeiro**, com o texto pronto de

@@ -6,10 +6,10 @@
   "description": "Skills do Cubo Suite para o Claude Code.",
   "plugins": [
     {
-      "name": "cubo-landing",
-      "source": "./",
-      "version": "2.4.2",
-      "description": "Cria, publica e edita landing pages no Cubo, com a identidade do cliente, formulário, SEO e nota do PageSpeed.",
+      "name": "criar-landing-html",
+      "source": "./plugins/criar-landing-html",
+      "version": "3.0.0",
+      "description": "Cria, publica e edita landing pages em HTML no Cubo, com a identidade do cliente, formulário, SEO e nota do PageSpeed.",
       "author": {
         "name": "Cubo Suite"
       },

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'landing-page', 'scripts')
+const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'criar-landing-html', 'skills', 'criar-landing-html', 'scripts')
 const PASTA = mkdtempSync(join(tmpdir(), 'cubo-lp-fumaca-'))
 const resultados = []
 
