@@ -131,7 +131,7 @@ prometer `status` e `css`, que a API recusa de propósito.
 2. **Instale a partir da pasta local**, sem passar pelo GitHub:
 
    ```
-   /plugin marketplace add /Users/wellingtoncapoia/Documents/Repositories/cubo-suite/cubo-lp-skill
+   /plugin marketplace add /Users/wellingtoncapoia/Documents/Repositories/cubo-suite/cubo-skills
    /plugin install criar-landing-html@cubo
    ```
 
