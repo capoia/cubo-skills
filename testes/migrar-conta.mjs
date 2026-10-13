@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Fumaça da skill migrar-conta. Sobe um Cubo de mentira com duas contas, que segue o contrato do
-// docs/migrar-conta/API-NECESSARIA.md (whoami, ?include=refs, recusa de ID de outra conta), e passa
+// formato que o CRM entregou (whoami, `{ data, metadata }`, `?include=refs`, detalhe item a item onde a
+// listagem não traz refs, recusa de ID de outra conta), e passa
 // pela jornada inteira: acesso, plano, perguntas, aplicar (com queda no meio), 2ª passada,
 // conferência e relatório. Roda no CI em Windows, macOS e Linux.
 import { spawn } from 'node:child_process'
@@ -12,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'migrar-conta', 'skills', 'migrar-conta', 'scripts')
 const { AREAS } = await import(pathToFileURL(join(SCRIPTS, 'areas.mjs')).href)
-const { aplicarRefs, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
+const { aplicarRefs, partesDoCaminho, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
 
 const PASTA = mkdtempSync(join(tmpdir(), 'cubo-migracao-'))
 const resultados = []
@@ -58,17 +59,20 @@ const CHAVE_PARA_KIND = {
 }
 const PARAMETRO_PARA_KIND = { pipeId: 'pipe', stageId: 'stage', knowledgeBaseId: 'knowledge_base', customfieldId: 'customfield', tagId: 'tag' }
 
-// O extrator de refs do Cubo de mentira: o que o CRM de verdade vai fazer, só para os campos usados aqui.
+// O caminho como o CRM monta (`joinPath`): chave que não é identificador vai em `["…"]`.
+const junta = (base, chave) => (typeof chave === 'number' ? `${base}[${chave}]` : /^[A-Za-z_$][\w$]*$/.test(chave) ? (base ? `${base}.${chave}` : chave) : `${base}[${JSON.stringify(chave)}]`)
+
+// O extrator de refs do Cubo de mentira: o que o CRM de verdade faz, só para os campos usados aqui.
 function extrairRefs(kind, objeto) {
   const refs = []
   const anda = (valor, caminho, chave) => {
-    if (Array.isArray(valor)) return valor.forEach((v, i) => anda(v, `${caminho}[${i}]`, chave))
+    if (Array.isArray(valor)) return valor.forEach((v, i) => anda(v, junta(caminho, i), chave))
     if (valor && typeof valor === 'object') {
       for (const [k, v] of Object.entries(valor)) {
         if (k === 'refs') continue
-        const aqui = caminho ? `${caminho}.${k}` : k
+        const aqui = junta(caminho, k)
         if (k === 'customfieldValues') {
-          for (const cf of Object.keys(v)) refs.push({ path: `${aqui}.${cf}`, kind: 'customfield', id: Number(cf), token: cf })
+          for (const cf of Object.keys(v)) refs.push({ path: junta(aqui, cf), kind: 'customfield', id: Number(cf), token: cf })
           continue
         }
         anda(v, aqui, k)
@@ -81,7 +85,7 @@ function extrairRefs(kind, objeto) {
       if (chave === 'parentId') alvo = kind
       if (chave === 'folderId') alvo = PASTA_DO_KIND[kind]
       if (chave === 'id' && /^fields\[\d+\]\.id$/.test(caminho)) alvo = 'customfield'
-      if (chave === 'id' && /^users\[\d+\]\.id$/.test(caminho)) alvo = 'user'
+      if (chave === 'userId' && /^members\[\d+\]\.userId$/.test(caminho)) alvo = 'user'
       if (alvo) refs.push({ path: caminho, kind: alvo, id: Number(valor) })
       return
     }
@@ -122,8 +126,8 @@ function semear(companyId, kind, registros) {
 }
 
 semear(1, 'tag', [{ id: 101, name: 'VIP', color: '#ff0000' }, { id: 102, name: 'Frio', color: '#0000ff' }])
-semear(1, 'customfield', [{ id: 201, name: 'Origem', context: 'deal', type: 'text' }, { id: 202, name: 'CPF', context: 'people', type: 'text' }])
-semear(1, 'pipe', [{ id: 301, name: 'Vendas', primaryField: '201', users: [{ id: 10, splitter: 1 }, { id: 11, splitter: 1 }], stages: [] }])
+semear(1, 'customfield', [{ id: 201, name: 'Origem', context: 'deal', type: 'select', options: [{ value: 'site' }, { value: 'indicação' }] }, { id: 202, name: 'CPF', context: 'people', type: 'text' }])
+semear(1, 'pipe', [{ id: 301, name: 'Vendas', primaryField: '201', members: [{ userId: 10, splitter: 1, active: true }, { userId: 11, splitter: 1, active: false }], users: [{ id: 10, name: 'Ana' }], stages: [] }])
 semear(1, 'stage', [
   { id: 401, name: 'Novo', pipeId: 301, customfieldIds: [201] },
   { id: 402, name: 'Ganho', pipeId: 301, customfieldIds: [] },
@@ -134,7 +138,7 @@ semear(1, 'agent', [
   {
     id: 601,
     name: 'SDR',
-    systemPrompt: `Você é o SDR. Mova com {{tool:move_deal_stage(pipeId=301,stageId=401)}} e responda com {{tool:answer_from_kb(knowledgeBaseId=501)}}. Cobre com {{tool:mcp_1201_list_invoices}}. Ligue 3010 vezes se preciso. Campo {{cf.deal.201}}. ${'Texto longo. '.repeat(4000)}`,
+    systemPrompt: `Você é o SDR. Mova com {{tool:move_deal_stage(pipeId=301,stageId=401)}} e responda com {{tool:answer_from_kb(knowledgeBaseId=501)}}. Cobre com {{tool:mcp_1201_list_invoices}}. Ligue 3010 vezes se preciso. Se travar, use update_deal_field_7777. Campo {{cf.deal.201}}. ${'Texto longo. '.repeat(4000)}`,
     followUpConfig: { exhaustedAction: { type: 'start_flow', automationId: 701 } },
     handoffTargets: [{ targetAgentId: 602, whenToUse: 'suporte' }],
   },
@@ -157,7 +161,19 @@ semear(1, 'automation', [
       edges: [{ id: 'e-start-move_stage-1', source: 'start', target: 'move_stage-1' }],
     },
   },
-  { id: 702, name: 'Recontato', status: 'draft', flowData: { nodes: [{ id: 'start_flow-9', type: 'start_flow', data: { automationId: 701 } }], edges: [] } },
+  {
+    id: 702,
+    name: 'Recontato',
+    status: 'draft',
+    publishedVersion: null,
+    flowData: {
+      nodes: [
+        { id: 'start_flow-9', type: 'start_flow', data: { automationId: 701 } },
+        { id: 'http_request-1', type: 'http_request', data: { label: 'Avisa o ERP', url: 'https://erp.test/hook', headerNames: ['Authorization'] } },
+      ],
+      edges: [],
+    },
+  },
 ])
 semear(1, 'form', [{ id: 801, name: 'Contato', publicId: 'frm_abc', settings: { destination: { pipeId: 301, stageId: 401 } }, fields: [{ id: 201, label: 'Origem' }, { id: 'name', label: 'Nome' }] }])
 semear(1, 'domain', [{ id: 901, domain: 'lp.clinica.com', status: 'active' }])
@@ -194,10 +210,23 @@ const servidor = createServer((pedido, resposta) => {
     const comRefs = url.searchParams.get('include') === 'refs'
     const [, , recurso, id] = url.pathname.split('/')
 
+    // Como o CRM: parâmetro desconhecido é 422.
+    const desconhecido = [...url.searchParams.keys()].find((p) => !['page', 'perPage', 'limit', 'include', 'name'].includes(p))
+    if (desconhecido) return responde(resposta, 422, { errors: [{ message: `parâmetro desconhecido: ${desconhecido}` }] })
+
     if (recurso === 'whoami') {
-      return responde(resposta, 200, { data: { companyId, name: conta.nome, tenantId: 1, user: { id: companyId === 1 ? 10 : 21, name: companyId === 1 ? 'Ana' : 'Dona', email: 'x', isAdmin: conta.admin }, scopes: conta.escopos, modules: [] } })
+      const total = (conta.escopos['*'] || []).includes('*')
+      return responde(resposta, 200, {
+        data: {
+          company: { id: companyId, name: conta.nome },
+          user: { id: companyId === 1 ? 10 : 21, name: companyId === 1 ? 'Ana' : 'Dona', email: 'x', type: 'admin', isAdmin: conta.admin },
+          apiKey: { id: 1, title: 'migração', type: 'integration', scopes: conta.escopos, fullAccess: total },
+          modules: {},
+          counts: {},
+        },
+      })
     }
-    if (recurso === 'users') return responde(resposta, 200, { data: usuarios[companyId], meta: { lastPage: 1 } })
+    if (recurso === 'users') return responde(resposta, 200, { data: usuarios[companyId], metadata: { total: usuarios[companyId].length, perPage: 100, currentPage: 1, lastPage: 1 } })
     if (recurso === 'files' && id === 'import-url') {
       return responde(resposta, 200, { data: { url: corpo.url.replace(/companies\/\d+\//, `companies/${companyId}/importados/`) } })
     }
@@ -205,18 +234,27 @@ const servidor = createServer((pedido, resposta) => {
     const kind = KIND_DA_ROTA[recurso]
     if (!kind) return responde(resposta, 404, { errors: [{ message: 'Route not found' }] })
     const comoSai = (registro) => (comRefs ? { ...registro, refs: extrairRefs(kind, registro) } : registro)
+    // Como o CRM: a listagem de automação é leve, a de base não traz o texto, e as duas recusam refs
+    // junto com a de landing. Formulário e landing respondem o detalhe dentro de `{ data }`.
+    const resumo = (registro) => {
+      if (kind === 'automation') return { id: registro.id, name: registro.name, status: registro.status, folderId: registro.folderId ?? null }
+      if (kind === 'knowledge_base') return Object.fromEntries(Object.entries(registro).filter(([campo]) => campo !== 'content'))
+      return registro
+    }
 
     if (pedido.method === 'GET' && !id) {
+      if (comRefs && ['landing', 'automation'].includes(kind)) return responde(resposta, 422, { errors: [{ message: 'include=refs só no detalhe' }] })
       const todos = lista(companyId, kind)
-      if (kind === 'tag') return responde(resposta, 200, todos.map(comoSai)) // como o Cubo de verdade: tags sem paginação
-      const porPagina = Number(url.searchParams.get('perPage') || 10)
+      const porPagina = Math.min(500, Number(url.searchParams.get('limit') || url.searchParams.get('perPage') || 10))
       const pagina = Number(url.searchParams.get('page') || 1)
       const fatia = todos.slice((pagina - 1) * porPagina, pagina * porPagina)
-      return responde(resposta, 200, { data: fatia.map(comoSai), meta: { lastPage: Math.max(1, Math.ceil(todos.length / porPagina)), currentPage: pagina } })
+      const metadata = { total: todos.length, perPage: porPagina, currentPage: pagina, lastPage: Math.max(1, Math.ceil(todos.length / porPagina)) }
+      return responde(resposta, 200, { data: fatia.map(resumo).map(comoSai), metadata })
     }
     if (pedido.method === 'GET' && id) {
       const registro = lista(companyId, kind).find((r) => String(r.id) === id)
-      return registro ? responde(resposta, 200, comoSai(registro)) : responde(resposta, 404, { errors: [{ message: 'not found' }] })
+      if (!registro) return responde(resposta, 404, { errors: [{ message: 'not found' }] })
+      return responde(resposta, 200, ['form', 'landing'].includes(kind) ? { data: comoSai(registro) } : comoSai(registro))
     }
 
     if (pedido.method === 'POST' || pedido.method === 'PUT') {
@@ -292,6 +330,25 @@ await caso('refs: renomeia chave de objeto, zera o adiado e tira o dado', async 
   confere(r.registro.quem === null && r.registro.link === 'pipe=301&', `link: ${r.registro.link}`)
 })
 
+await caso('refs: caminho com ["…"], chaves e CSV que cruzam o mapa (12→40 e 40→55) trocam sobre o original', async () => {
+  confere(JSON.stringify(partesDoCaminho('nodes[2].data.customfieldValues["45"].x')) === JSON.stringify(['nodes', 2, 'data', 'customfieldValues', '45', 'x']), 'caminho mal lido')
+  confere(JSON.stringify(partesDoCaminho('a["b.c"][0]')) === JSON.stringify(['a', 'b.c', 0]), 'chave com ponto mal lida')
+  const registro = { valores: { 12: 'doze', 40: 'quarenta' }, tags: '12,40', texto: '{{cf.deal.12}} e {{cf.deal.40}}' }
+  const refs = [
+    { path: 'valores["12"]', kind: 'customfield', id: 12, token: '12' },
+    { path: 'valores["40"]', kind: 'customfield', id: 40, token: '40' },
+    { path: 'tags', kind: 'tag', id: 12, token: '12,40' },
+    { path: 'tags', kind: 'tag', id: 40, token: '12,40' },
+    { path: 'texto', kind: 'customfield', id: 12, token: '{{cf.deal.12}}' },
+    { path: 'texto', kind: 'customfield', id: 40, token: '{{cf.deal.40}}' },
+  ]
+  const mapa = { 12: 40, 40: 55 }
+  const r = aplicarRefs(registro, refs, (ref) => ({ novo: mapa[ref.id] }))
+  confere(JSON.stringify(r.registro.valores) === JSON.stringify({ 40: 'doze', 55: 'quarenta' }), `chaves: ${JSON.stringify(r.registro.valores)}`)
+  confere(r.registro.tags === '40,55', `CSV: ${r.registro.tags}`)
+  confere(r.registro.texto === '{{cf.deal.40}} e {{cf.deal.55}}', `texto: ${r.registro.texto}`)
+})
+
 // ---------------------------------------------------------------------------------------------
 // Acesso.
 
@@ -349,6 +406,8 @@ await caso('plano: puxa as dependências, casa usuário por e-mail e MCP por nom
   confere(JSON.stringify(ids) === JSON.stringify(['dominio:901', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
   confere(/PLANO \(nada foi alterado ainda\)/.test(r.saida) && /Automações: 2 itens/.test(r.saida), r.saida)
   confere(Object.values(banco[2]).flat().length === 2, 'o plano não pode escrever na conta nova')
+  confere(l.avisos.some((t) => /7777 \(em update_deal_field_7777\)/.test(t)) && !l.avisos.some((t) => /1201/.test(t)), `avisos: ${l.avisos.join(' | ')}`)
+  confere(l.pendencias.some((p) => /Recontato.*cabeçalhos do nó HTTP “Avisa o ERP” \(Authorization\)/.test(p.texto)), 'faltou a pendência dos cabeçalhos do nó HTTP')
 })
 
 await caso('aplicar: não começa com pergunta em aberto', async () => {
@@ -410,6 +469,10 @@ await caso('aplicar: rodar de novo continua de onde parou, sem duplicar, e faz a
   const filtro = doDestino('filter')[0]
   confere(filtro.userId === 21 && filtro.link === `pipe=${pipe}&stage=${l.mapa.stage['401']}&`, JSON.stringify(filtro))
   confere(doDestino('domain')[0].domain === 'lp.clinicanova.com', 'domínio escolhido não usado')
+  const campo = doDestino('customfield').find((c) => c.name === 'Origem')
+  confere(JSON.stringify(campo.options) === JSON.stringify(['site', 'indicação']), `options: ${JSON.stringify(campo.options)}`)
+  const funil = doDestino('pipe')[0]
+  confere(JSON.stringify(funil.members.map((m) => m.userId)) === JSON.stringify([20, 21]) && !('users' in funil), `funil: ${JSON.stringify(funil)}`)
 })
 
 await caso('conferir: relê tudo na conta nova e não acha ID da conta antiga', async () => {

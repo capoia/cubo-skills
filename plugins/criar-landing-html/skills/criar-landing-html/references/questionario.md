@@ -89,7 +89,7 @@ Se o raio-x rodou, **mostre o que ele achou e peça só a confirmação** dos it
 
 ## Bloco 6 — Publicação
 
-27. **Qual domínio?** Liste os cadastrados (`GET /api/domains`). Se o que ela quer não existe,
+27. **Qual domínio?** Liste os cadastrados (`GET /api/domains?perPage=500`). Se o que ela quer não existe,
     cadastre e entregue o CNAME.
 28. **Qual caminho?** `/promo`, `/turma-marco`. Curto, sem acento, com hífen. Se estiver ocupado, a
     criação volta 422 dizendo — aí proponha outro.

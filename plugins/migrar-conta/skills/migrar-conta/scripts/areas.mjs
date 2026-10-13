@@ -7,15 +7,20 @@ const nome = (registro) => String(registro.name ?? '').trim().toLowerCase()
 export const AREAS = [
   { kind: 'tag', rotulo: 'Tags', rota: '/api/tags', escopo: 'tags' },
   { kind: 'category', rotulo: 'Categorias', rota: '/api/categories', escopo: 'categories' },
-  { kind: 'lost_reason', rotulo: 'Motivos de perda', rota: '/api/lostreasons', escopo: 'lostReasons', nome: (r) => String(r.reason ?? '').trim().toLowerCase() },
+  { kind: 'lost_reason', rotulo: 'Motivos de perda', rota: '/api/lostreasons', escopo: 'lostReasons', escopoTambem: 'pipes', nome: (r) => String(r.reason ?? '').trim().toLowerCase() },
   { kind: 'resolution_reason', rotulo: 'Motivos de resolução', rota: '/api/resolution-reasons', escopo: 'resolutionReasons', nome: (r) => String(r.reason ?? '').trim().toLowerCase() },
   { kind: 'transfer_reason', rotulo: 'Motivos de transferência', rota: '/api/transfer-reasons', escopo: 'transferReasons', nome: (r) => String(r.reason ?? '').trim().toLowerCase() },
   { kind: 'pause_reason', rotulo: 'Motivos de pausa', rota: '/api/pause-reasons', escopo: 'pauseReasons', nome: (r) => String(r.reason ?? '').trim().toLowerCase() },
   { kind: 'department', rotulo: 'Departamentos', rota: '/api/departments', escopo: 'departments' },
-  { kind: 'customfield', rotulo: 'Campos personalizados', rota: '/api/customfields', escopo: 'customfields', nome: (r) => `${r.context}|${nome(r)}` },
+  {
+    kind: 'customfield', rotulo: 'Campos personalizados', rota: '/api/customfields', escopo: 'customfields', nome: (r) => `${r.context}|${nome(r)}`,
+    // A leitura dá `options: [{ value }]`; a criação recebe a lista de textos.
+    preparar: (corpo) => (Array.isArray(corpo.options) ? { ...corpo, options: corpo.options.map((opcao) => (opcao && typeof opcao === 'object' ? opcao.value : opcao)) } : corpo),
+  },
   { kind: 'product', rotulo: 'Produtos', rota: '/api/products', escopo: 'products' },
-  { kind: 'pipe', rotulo: 'Funis', rota: '/api/pipes', escopo: 'pipes', remover: ['stages'] },
-  { kind: 'stage', rotulo: 'Estágios', rota: '/api/stages', escopo: 'stages', nome: (r) => `${r.pipeId}|${nome(r)}` },
+  // `users` traz só os ativos e não gera ref; quem vale é `members`, inclusive os desativados.
+  { kind: 'pipe', rotulo: 'Funis', rota: '/api/pipes', escopo: 'pipes', remover: ['stages', 'users'] },
+  { kind: 'stage', rotulo: 'Estágios', rota: '/api/stages', escopo: 'stages', escopoTambem: 'pipes', nome: (r) => `${r.pipeId}|${nome(r)}` },
   {
     kind: 'oauth_credential', rotulo: 'Credenciais OAuth', rota: '/api/oauth-credentials', escopo: 'oauthCredentials',
     remover: ['status', 'lastError', 'lastRefreshAt', 'tokenExpiresAt', 'hasClientSecret'],
@@ -38,6 +43,7 @@ export const AREAS = [
   {
     kind: 'knowledge_base', rotulo: 'Bases de conhecimento', rota: '/api/knowledge-bases', escopo: 'knowledgeBases',
     remover: ['indexStatus', 'indexedChunksCount', 'lastIndexedAt', 'tokenEstimate'], textoGrande: ['content'],
+    detalhe: true, // o `content` só vem no detalhe
   },
   {
     kind: 'custom_intent', rotulo: 'Intents de agente', rota: '/api/intents', escopo: 'intents',
@@ -56,13 +62,22 @@ export const AREAS = [
     kind: 'landing', rotulo: 'Landing pages', rota: '/api/landings', escopo: 'landings',
     nome: (r) => `${r.domainId}|${String(r.url ?? '').replace(/^\/+/, '') || '/'}`,
     remover: ['publicUrl', 'domain'], nascer: { status: 'deactivated' }, textoGrande: ['html'],
+    detalhe: true, // a listagem não traz o construtor e recusa `include=refs`
     pendencia: (r) => `Landing “${r.title}”: revisar e ativar (Landing pages → ${r.title} → ativar).`,
   },
   { kind: 'automation_folder', rotulo: 'Pastas de automações', rota: '/api/automation-folders', escopo: 'automations', nome: (r) => `${r.parentId ?? ''}|${nome(r)}` },
   {
     kind: 'automation', rotulo: 'Automações', rota: '/api/automations', escopo: 'automations',
-    nascer: { status: 'draft' },
-    pendencia: (r) => (r.status === 'active' ? `Automação “${r.name}”: estava ligada na conta antiga. Revisar, publicar e ligar.` : null),
+    remover: ['publishedVersion', 'hasUnpublishedChanges'], nascer: { status: 'draft' },
+    detalhe: true, // a listagem é leve (sem `flowData`) e recusa `include=refs`
+    pendencia: (r) => {
+      const partes = []
+      // O nó HTTP sai sem o valor dos cabeçalhos (`headerNames`): a pessoa digita de novo.
+      const http = (r.flowData?.nodes || []).filter((no) => no?.data?.headerNames?.length)
+      for (const no of http) partes.push(`preencher os cabeçalhos do nó HTTP “${no.data.label || no.id}” (${no.data.headerNames.join(', ')})`)
+      if (r.status === 'active') partes.push('estava ligada na conta antiga: revisar, publicar e ligar')
+      return partes.length ? `Automação “${r.name}”: ${partes.join('; ')}.` : null
+    },
   },
   {
     kind: 'channel', rotulo: 'Canais', rota: '/api/channels', escopo: 'channels',
@@ -132,7 +147,8 @@ export function corpoParaCriar(area, registro) {
     if (area.so && !area.so.includes(campo)) continue
     corpo[campo] = valor
   }
-  return { ...corpo, ...(area.nascer || {}) }
+  const pronto = area.preparar ? area.preparar(corpo) : corpo
+  return { ...pronto, ...(area.nascer || {}) }
 }
 
 // Como chamar um item para a pessoa: cada área usa um campo diferente para o nome.

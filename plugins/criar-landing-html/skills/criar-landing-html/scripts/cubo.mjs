@@ -84,7 +84,7 @@ switch (comando) {
     const rotas = {
       landings: '/api/landings?perPage=1',
       forms: '/api/forms?perPage=1',
-      domains: '/api/domains',
+      domains: '/api/domains?perPage=1',
       customfields: '/api/customfields?perPage=1',
       pipes: '/api/pipes?perPage=1',
       deals: '/api/deals?perPage=1',
@@ -110,7 +110,7 @@ switch (comando) {
       const resposta = JSON.parse(texto)
       const lista = Array.isArray(resposta) ? resposta : resposta.data ?? []
       funil = lista.find((item) => item.id === funilId) ?? null
-      if (!lista.length || (resposta.meta && pagina >= (resposta.meta.lastPage ?? 1))) break
+      if (!lista.length || pagina >= ((resposta.metadata ?? resposta.meta)?.lastPage ?? 1)) break
     }
     if (!funil) falha(`o funil ${funilId} não existe, ou o usuário da chave não participa dele`)
     const etapas = funil.stages ?? []

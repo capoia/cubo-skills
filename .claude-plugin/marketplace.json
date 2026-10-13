@@ -8,7 +8,7 @@
     {
       "name": "criar-landing-html",
       "source": "./plugins/criar-landing-html",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "description": "Cria, publica e edita landing pages em HTML no Cubo, com a identidade do cliente, formulário, SEO e nota do PageSpeed.",
       "author": {
         "name": "Cubo Suite"

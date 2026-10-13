@@ -165,7 +165,7 @@ Sempre pela API ([references/api.md](references/api.md)):
    do **tipo certo** (estado e cidade são `state` e `city`, nunca texto) e o tema com a cara do site.
    Guarde o `publicId` (`frm_…`).
    [references/formulario.md](references/formulario.md).
-4. **Domínio** — `GET /api/domains`; se não existir, cadastre e entregue o CNAME.
+4. **Domínio** — `GET /api/domains?perPage=500`; se não existir, cadastre e entregue o CNAME.
 5. **Prévia local**, com captura:
 
    ```bash
@@ -194,7 +194,7 @@ Ajuste até a pessoa dizer **"pode publicar"**.
    nunca vão ao ar sem um "sim" explícito: **número marcado como "a validar"** (em franquia,
    investimento e retorno são compromisso jurídico) e **imagem que você suspeitou ser render** — no
    topo, então, jamais. Na dúvida, troque por uma foto real ou tire a seção.
-2. Confira que o domínio está `active` (`GET /api/domains`). **A API não confere**: página em
+2. Confira que o domínio está `active` (`GET /api/domains?perPage=500`). **A API não confere**: página em
    domínio que não resolve fica "no ar" onde ninguém alcança.
 3. `POST /api/landings` — **a página nasce no ar** (`status: "active"`). Para deixar pronta e fora
    do ar, mande `"status": "deactivated"`; para publicar depois, `PUT` com `"status": "active"`.

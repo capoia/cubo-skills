@@ -16,14 +16,16 @@ Documentos irmãos:
 | Frente | Onde | Situação |
 | --- | --- | --- |
 | Estudo do CRM e briefing da API | `docs/migrar-conta/API-NECESSARIA.md` | ✅ 2026-10-13 |
-| Rotas + `refs` no CRM | `capoia/cubo-crm` (outra janela) | ⏳ em andamento |
+| Rotas de **leitura** + `refs` no CRM (A0–A6) | `capoia/cubo-crm` #419–#431 | ✅ 2026-10-13, em produção |
+| Rotas de **criação/edição** no CRM | `capoia/cubo-crm` (outra janela) | ⏳ |
+| Leitura da skill ajustada ao CRM real | `lib.mjs`, `conta.mjs`, `plano.mjs`, `refs.mjs`, `areas.mjs` | ✅ 2026-10-13 |
 | Esqueleto do plugin, ledger de execução, acesso às duas contas | `plugins/migrar-conta`, `conta.mjs`, `ledger.mjs` | ✅ 2026-10-13 |
 | Plano (leitura da origem, dependências, usuários, já existentes) | `scripts/plano.mjs`, `decidir.mjs` | ✅ 2026-10-13 |
 | Aplicar (troca de IDs, segunda passada, retomada) | `scripts/aplicar.mjs`, `refs.mjs` | ✅ 2026-10-13 |
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
 | Relatório HTML | `scripts/relatorio.mjs` | ✅ 2026-10-13 |
-| Fumaça no CI (16 casos, Cubo de mentira com duas contas) | `testes/migrar-conta.mjs` | ✅ local; CI no PR |
-| Ajustar o catálogo às rotas reais quando o CRM entregar | `scripts/areas.mjs` | ⏳ |
+| Fumaça no CI (17 casos, Cubo de mentira com duas contas no formato real do CRM) | `testes/migrar-conta.mjs` | ✅ |
+| Ajustar o catálogo às rotas de escrita quando o CRM entregar | `scripts/areas.mjs` | ⏳ |
 | Ambiente local com contas semeadas (slot do `cubo-crm`) | — | ⏳ depois das rotas |
 | Evals (conta vazia, nome repetido, referência inexistente) | `evals/evals.json` | ⏳ depois do ambiente |
 
@@ -62,25 +64,49 @@ já foi criado. Quando aparece algo que só a pessoa pode decidir (usuário sem 
 domínio), o `aplicar` para e lista as perguntas; o Claude pergunta com escolha clicável, grava com o
 `decidir.mjs` e roda de novo.
 
-## Premissas sobre a API (confirmar quando o CRM entregar)
+## Premissas sobre a API
 
-O catálogo `scripts/areas.mjs` é o único lugar com rotas e escopos. Ajuste lá quando o CRM decidir.
+O catálogo `scripts/areas.mjs` é o único lugar com rotas e escopos. Ajuste lá quando o CRM mudar.
+Fonte da verdade da leitura, no `cubo-crm`: `start/routes/api.ts`, `app/refs/*`,
+`app/constants/api_key_scopes.ts`, `app/actions/api/describe_api_key.ts` e
+`docs/testing/behaviors/api-configuracao.md`.
 
-- [ ] nomes das rotas: `/api/resolution-reasons`, `/api/transfer-reasons`, `/api/pause-reasons`,
-      `/api/activity-trails`, `/api/knowledge-base-folders`, `/api/agent-folders`,
-      `/api/automation-folders`, `/api/oauth-credentials`, `/api/mcp-connections`, `/api/whoami`,
-      `/api/files/import-url`
-- [ ] nomes dos escopos de cada recurso (o catálogo supõe um por rota, com `read`/`create`/`update`)
-- [ ] `whoami` devolve `{ companyId, name, tenantId, user: { id, name, email, isAdmin }, scopes, modules, counts }`
-- [ ] `?include=refs` em `index` e `show`; `?name=` exato
+**Confirmado na leitura (2026-10-13):**
+
+- [x] rotas: as do catálogo, todas com `GET /api/<recurso>` e `GET /api/<recurso>/:id`
+- [x] escopos de leitura: um por área, com os nomes do catálogo; etapa e motivo de perda aceitam
+      também `pipes:read` (`escopoTambem`); `*:*` e chave antiga chegam com `apiKey.fullAccess: true`
+- [x] `whoami` → `{ data: { company: { id, name }, user: { id, name, email, type, isAdmin },
+      apiKey: { scopes, fullAccess }, modules, counts } }`. Sem tenant
+- [x] listagem `{ data, metadata: { lastPage } }`, `page`/`perPage`/`limit` (teto 500); parâmetro
+      desconhecido = 422
+- [x] detalhe devolve o objeto direto, menos formulário e landing (`{ data }`): `lib.detalhe` trata
+- [x] `?include=refs` na listagem, menos landing e automação (422). Essas duas e a base de
+      conhecimento (o `content` só vem no detalhe) leem item a item (`detalhe: true` no catálogo)
+- [x] `path` no formato do `joinPath` do CRM: `a.b`, `a[0]`, `a["45"]`
+- [x] refs do mesmo `path` aplicados de uma vez, sobre o original (CSV com `token` = valor inteiro,
+      chaves de objeto que cruzam o mapa)
+
+**Falta confirmar (rotas de escrita):**
+
+- [ ] escopos de `create`/`update` de cada área (hoje quase todas só têm `read`, então a conferência
+      barra a conta nova — é o certo até a escrita existir)
 - [ ] POST aceita ref nula nos campos que a skill adia para a segunda passada (ex.: `start_flow`
       apontando para automação ainda não criada)
 - [ ] POST de formulário devolve o `publicId` novo
-- [ ] Landing do construtor: o que fazer com o `keycubo` (a skill hoje esvazia e deixa pendência)
+- [ ] `POST /api/files/import-url` (copiar arquivo do storage da conta antiga)
+- [ ] o que o POST faz com os campos só de leitura: `headerNames` do nó HTTP, `hasClientSecret`,
+      `members` do funil, `customfieldIds`/`lostReasonIds` da etapa, `assets`/`components`/`styles`
+- [ ] landing do construtor: o que fazer com o `keycubo` (a skill hoje esvazia e deixa pendência; o
+      CRM aceitou o risco de a chave ficar no HTML)
 
 ## Pendências e ideias
 
 - Testar com Haiku, Sonnet e Opus (o modelo segue o fluxo? pergunta com escolha clicável?).
+- Nó HTTP: hoje vira pendência ("preencher os cabeçalhos"). Dá para perguntar os valores na hora
+  e mandar no POST — decidir quando a escrita existir.
+- `send_meta_conversion.eventId` é ID dentro da config da integração, não ref: só funciona se a
+  integração da conta nova tiver os mesmos eventos. Avisar no relatório.
 - Evals com `skill-creator` depois que houver ambiente.
 
 ## Como o código está organizado
@@ -111,3 +137,10 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   grudado em `_` (`mcp_1201_list`); a borda de palavra não servia, agora é borda de dígito. Briefing
   ganhou duas regras: o identificador do próprio recurso não é ref, e o ID dentro de token pode vir
   grudado em `_`.
+- **2026-10-13** — O CRM entregou a leitura (A0–A6, #419–#431, em produção). Skill ajustada ao
+  formato real: paginação em `metadata`, `whoami` novo (sem tenant; `fullAccess`), detalhe item a
+  item para landing/automação/base, `escopoTambem` (`pipes:read`), `options` do campo como lista de
+  textos, `members` no lugar de `users` no funil. Troca de IDs: lê caminho `["45"]` e troca as chaves
+  de um mesmo objeto de uma vez (12→40 e 40→55 não colidem). Plano avisa número de ferramenta sem
+  ref no prompt do agente e deixa pendência dos cabeçalhos do nó HTTP. Fumaça: 17 casos. De
+  carona, `criar-landing-html` 3.0.1 lê os domínios com `perPage=500`.

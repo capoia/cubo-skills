@@ -14,10 +14,35 @@
 //   { remover }   tira (valor vira null; trecho de texto some);
 //   { faltando }  não sei o par: deixa como está e avisa (quem chama decide se pode seguir).
 
+// O caminho vem no formato do CRM (`joinPath`): ponto para chave simples, `[0]` para índice e
+// `["45"]` (JSON) para chave que não é identificador, como um ID ou uma chave com ponto.
 export function partesDoCaminho(caminho) {
   const partes = []
-  for (const pedaco of String(caminho).match(/[^.[\]]+|\[\d+\]/g) || []) {
-    partes.push(/^\[\d+\]$/.test(pedaco) ? Number(pedaco.slice(1, -1)) : pedaco)
+  const texto = String(caminho)
+  let i = 0
+  while (i < texto.length) {
+    if (texto[i] === '.') {
+      i++
+      continue
+    }
+    if (texto[i] === '[') {
+      if (texto[i + 1] === '"') {
+        let fim = i + 2
+        while (fim < texto.length && !(texto[fim] === '"' && texto[fim - 1] !== '\\')) fim++
+        partes.push(JSON.parse(texto.slice(i + 1, fim + 1)))
+        i = fim + 2
+      } else {
+        const fim = texto.indexOf(']', i)
+        const dentro = texto.slice(i + 1, fim)
+        partes.push(/^\d+$/.test(dentro) ? Number(dentro) : dentro)
+        i = fim + 1
+      }
+      continue
+    }
+    let fim = i
+    while (fim < texto.length && texto[fim] !== '.' && texto[fim] !== '[') fim++
+    partes.push(texto.slice(i, fim))
+    i = fim
   }
   return partes
 }
@@ -135,19 +160,48 @@ export function aplicarRefs(registro, refs, decidir) {
     escrever(copia, caminho, trocarTrechos(texto, trocas))
   }
 
-  // Chaves de objeto por último, das mais fundas para as mais rasas: renomear muda o caminho de quem
-  // está embaixo.
-  chaves.sort((a, b) => partesDoCaminho(b.ref.path).length - partesDoCaminho(a.ref.path).length)
-  for (const { ref, resposta } of chaves) {
-    if (resposta.faltando) continue
-    const partes = partesDoCaminho(ref.path)
-    const recipiente = pai(copia, partes)
-    if (recipiente == null || !(partes.at(-1) in recipiente)) continue
-    const valor = recipiente[partes.at(-1)]
-    delete recipiente[partes.at(-1)]
-    if (resposta.remover || resposta.adiar) continue
-    recipiente[novoToken(String(ref.token), [[ref.id, resposta.novo]])] = valor
-    resultado.trocas++
+  // Chaves de objeto por último, das mais fundas para as mais rasas (renomear muda o caminho de quem
+  // está embaixo). As chaves do mesmo objeto trocam todas de uma vez, a partir do original: com
+  // 12→40 e 40→55, trocar uma por uma faria a 12 sobrescrever a 40 e as duas virarem 55.
+  const porObjeto = new Map() // caminho do objeto → [{ref, resposta}]
+  for (const item of chaves) {
+    const caminhoPai = JSON.stringify(partesDoCaminho(item.ref.path).slice(0, -1))
+    if (!porObjeto.has(caminhoPai)) porObjeto.set(caminhoPai, [])
+    porObjeto.get(caminhoPai).push(item)
+  }
+  const objetos = [...porObjeto.entries()].sort((a, b) => JSON.parse(b[0]).length - JSON.parse(a[0]).length)
+  for (const [caminhoPai, itens] of objetos) {
+    const partesPai = JSON.parse(caminhoPai)
+    const recipiente = partesPai.length ? pai(copia, [...partesPai, null]) : copia
+    if (recipiente == null || typeof recipiente !== 'object') continue
+    const original = { ...recipiente }
+    const renomeia = new Map() // chave antiga → chave nova (ou null para tirar)
+    for (const { ref, resposta } of itens) {
+      if (resposta.faltando) continue
+      const chave = String(ref.token)
+      if (!(chave in original)) continue
+      if (resposta.remover || resposta.adiar) {
+        renomeia.set(chave, null)
+        continue
+      }
+      const anterior = renomeia.get(chave)
+      const ids = [[ref.id, resposta.novo]]
+      // Vários IDs na mesma chave: acumula a partir do original.
+      if (anterior !== undefined && anterior !== null) renomeia.set(chave, { ids: [...anterior.ids, ...ids] })
+      else renomeia.set(chave, { ids })
+      resultado.trocas++
+    }
+    if (!renomeia.size) continue
+    for (const chave of Object.keys(recipiente)) delete recipiente[chave]
+    for (const [chave, valor] of Object.entries(original)) {
+      if (!renomeia.has(chave)) {
+        recipiente[chave] = valor
+        continue
+      }
+      const troca = renomeia.get(chave)
+      if (troca === null) continue
+      recipiente[novoToken(chave, troca.ids)] = valor
+    }
   }
 
   return resultado

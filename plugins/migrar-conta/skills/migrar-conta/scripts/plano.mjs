@@ -5,7 +5,7 @@
 import { mkdirSync } from 'node:fs'
 import { AREA, AREAS, GRUPOS, KINDS_DE_DADO, KIND_PUBLIC_ID, KIND_USUARIO, areasDaEscolha, rotuloDe } from './areas.mjs'
 import { aviso, carregar, chaveItem, etapa, pendencia, registrar, salvar } from './ledger.mjs'
-import { argumentos, falha, gravarJson, pasta, todos } from './lib.mjs'
+import { argumentos, detalhe, ErroApi, falha, gravarJson, pasta, todos } from './lib.mjs'
 
 // Áreas cujo nome depende de outro ID (estágio é por funil, pasta por pasta-mãe…): só dá para saber se
 // já existem depois que o pai for criado. O `aplicar` confere na hora.
@@ -36,18 +36,60 @@ ledger.areas = escolhidas
 salvar(ledger)
 
 // ---------------------------------------------------------------------------------------------
-// Leitura, com cache por área (origem e destino).
+// Leitura, com cache por área (origem e destino). A maioria das áreas traz os refs na listagem; as
+// marcadas com `detalhe` (landing, automação, base de conhecimento) só no detalhe, item a item.
 
-const daOrigem = {}
+const listaDaOrigem = {}
+const completoDaOrigem = {} // kind → Map(id → registro com refs)
 const doDestino = {}
 
-async function lerOrigem(kind) {
-  if (!daOrigem[kind]) {
-    process.stdout.write(`  lendo ${AREA[kind].rotulo} da conta antiga… `)
-    daOrigem[kind] = await todos('origem', `${AREA[kind].rota}?include=refs`)
-    console.log(daOrigem[kind].length)
+async function lerLista(kind) {
+  listaDaOrigem[kind] ||= await todos('origem', AREA[kind].detalhe ? AREA[kind].rota : `${AREA[kind].rota}?include=refs`)
+  return listaDaOrigem[kind]
+}
+
+// Um item com refs. `null` quando não existe (ou a chave não enxerga).
+async function itemDaOrigem(kind, id) {
+  const cache = (completoDaOrigem[kind] ||= new Map())
+  const chave = String(id)
+  if (cache.has(chave)) return cache.get(chave)
+  let registro = AREA[kind].detalhe ? undefined : (await lerLista(kind)).find((r) => String(r.id) === chave)
+  if (registro === undefined) {
+    try {
+      registro = await detalhe('origem', AREA[kind].rota, id, '?include=refs')
+    } catch (erro) {
+      if (!(erro instanceof ErroApi && erro.codigo === 404)) throw erro
+      registro = null
+    }
   }
-  return daOrigem[kind]
+  cache.set(chave, registro)
+  return registro
+}
+
+async function lerOrigem(kind) {
+  process.stdout.write(`  lendo ${AREA[kind].rotulo} da conta antiga… `)
+  const lista = await lerLista(kind)
+  const registros = []
+  for (const resumo of lista) {
+    const registro = await itemDaOrigem(kind, resumo.id)
+    if (registro) registros.push(registro)
+  }
+  console.log(registros.length)
+  return registros
+}
+
+// Nome de ferramenta copiado para o prompt (`move_deal_stage_304416_320170`) sem o chip
+// correspondente: o CRM só sabe o tipo do número quando a ferramenta tem um campo de ID só. Número
+// que fica sem ref não é trocado, e a pessoa precisa saber.
+function numerosSemRef(registro) {
+  const texto = registro.systemPrompt
+  if (typeof texto !== 'string') return []
+  const comRef = new Set((registro.refs || []).filter((ref) => ref.path === 'systemPrompt').map((ref) => String(ref.id)))
+  const soltos = new Set()
+  for (const [nomeFerramenta] of texto.matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)*_\d+\b/g)) {
+    for (const [numero] of nomeFerramenta.matchAll(/(?<=_)\d{3,}(?=_|$)/g)) if (!comRef.has(numero)) soltos.add(`${numero} (em ${nomeFerramenta})`)
+  }
+  return [...soltos]
 }
 
 async function lerDestino(kind) {
@@ -81,7 +123,8 @@ try {
       if (KINDS_DE_DADO.has(ref.kind)) refsDeDado++
       // O formulário embutido numa landing aparece pelo código público (frm_…): ele vem junto.
       if (ref.kind === KIND_PUBLIC_ID) {
-        const formulario = (await lerOrigem('form')).find((f) => f.publicId === ref.id)
+        const resumo = (await lerLista('form')).find((f) => f.publicId === ref.id)
+        const formulario = resumo && (await itemDaOrigem('form', resumo.id))
         if (formulario && !itens.has(chaveItem('form', formulario.id))) {
           itens.set(chaveItem('form', formulario.id), { kind: 'form', registro: formulario, motivo: 'dependencia' })
           fila.push(chaveItem('form', formulario.id))
@@ -96,7 +139,7 @@ try {
       }
       const chave = chaveItem(ref.kind, ref.id)
       if (itens.has(chave)) continue
-      const alvo = (await lerOrigem(ref.kind)).find((r) => String(r.id) === String(ref.id))
+      const alvo = await itemDaOrigem(ref.kind, ref.id)
       if (!alvo) {
         aviso(ledger, `${area.rotulo}: o item nº ${ref.id}, usado em outro item, não existe na conta antiga (já estava quebrado lá). Vai ficar sem par.`)
         continue
@@ -104,6 +147,11 @@ try {
       itens.set(chave, { kind: ref.kind, registro: alvo, motivo: 'dependencia' })
       fila.push(chave)
     }
+  }
+  for (const { kind, registro } of itens.values()) {
+    if (kind !== 'agent') continue
+    const soltos = numerosSemRef(registro)
+    if (soltos.length) aviso(ledger, `Agente “${rotuloDe(registro)}”: o prompt cita ${soltos.join(', ')} num nome de ferramenta que o Cubo não sabe a que se refere. Esse número NÃO será trocado: confira o prompt na conta nova depois da migração.`)
   }
   if (refsDeDado) aviso(ledger, `${refsDeDado} configurações apontam para negociações, pessoas ou organizações específicas (dados, que não se migram). Essas referências serão retiradas.`)
 

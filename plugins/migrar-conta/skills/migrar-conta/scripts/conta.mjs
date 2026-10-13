@@ -36,13 +36,13 @@ function abrir(conta) {
   console.log('Preencha o endereço e a chave, salve e feche. Depois é só avisar.')
 }
 
-// Escopos no formato do CRM: { pipes: ['read'], '*': ['*'] }. Chave antiga sem escopos passa em tudo.
-function temEscopo(escopos, recurso, acao) {
-  if (escopos == null) return true
-  const curinga = escopos['*'] || []
-  if (curinga.includes('*') || curinga.includes(acao)) return true
-  const doRecurso = escopos[recurso] || []
-  return doRecurso.includes('*') || doRecurso.includes(acao)
+// Escopos no formato do CRM: { pipes: ['read'], '*': ['*'] }. Chave antiga e chave de acesso total
+// chegam com `fullAccess: true` e passam em tudo.
+function temEscopo(chave, recurso, acao) {
+  if (chave?.fullAccess) return true
+  const escopos = chave?.scopes || {}
+  if ((escopos['*'] || []).includes('*')) return true
+  return (escopos[recurso] || []).includes(acao)
 }
 
 async function conferirConta(conta, kinds, linhas) {
@@ -63,8 +63,10 @@ async function conferirConta(conta, kinds, linhas) {
   } catch (erro) {
     return ruim(erro.message)
   }
+  // { company: { id, name }, user: { id, name, email, isAdmin }, apiKey: { scopes, fullAccess }, modules, counts }
   eu = eu?.data ?? eu
-  ok(`conectou em ${config.base}: conta “${eu.name}” (nº ${eu.companyId})`)
+  const empresa = eu.company || {}
+  ok(`conectou em ${config.base}: conta “${empresa.name ?? 'sem nome'}” (nº ${empresa.id})`)
 
   let tudoCerto = true
   if (eu.user && eu.user.isAdmin === false) {
@@ -74,13 +76,16 @@ async function conferirConta(conta, kinds, linhas) {
 
   const acoes = conta === 'origem' ? ['read'] : ['read', 'create', 'update']
   const faltam = []
-  const recursos = new Set(['users', ...kinds.map((kind) => AREA[kind].escopo)])
-  if (kinds.some((kind) => ['landing', 'product', 'pipe', 'automation', 'template'].includes(kind)) && conta === 'destino') recursos.add('files')
-  for (const recurso of recursos) {
+  // Algumas leituras aceitam também uma permissão mais antiga (etapa e motivo de perda com `pipes:read`).
+  const recursos = new Map([['users', null]])
+  for (const kind of kinds) recursos.set(AREA[kind].escopo, AREA[kind].escopoTambem ?? null)
+  if (kinds.some((kind) => ['landing', 'product', 'pipe', 'automation', 'template'].includes(kind)) && conta === 'destino') recursos.set('files', null)
+  for (const [recurso, alternativo] of recursos) {
     for (const acao of acoes) {
       if (recurso === 'users' && acao !== 'read') continue
       if (recurso === 'files' && acao !== 'create') continue
-      if (!temEscopo(eu.scopes, recurso, acao)) faltam.push(`${recurso}:${acao}`)
+      if (temEscopo(eu.apiKey, recurso, acao) || (acao === 'read' && alternativo && temEscopo(eu.apiKey, alternativo, acao))) continue
+      faltam.push(`${recurso}:${acao}`)
     }
   }
   if (faltam.length) {
@@ -88,7 +93,7 @@ async function conferirConta(conta, kinds, linhas) {
     ruim(`faltam permissões na chave: ${faltam.join(', ')}. No Cubo: Configurações → Chaves de API → editar a chave → marcar essas permissões.`)
   } else ok(`permissões de ${conta === 'origem' ? 'leitura' : 'leitura, criação e edição'} conferidas`)
 
-  return tudoCerto ? { companyId: eu.companyId, nome: eu.name, tenantId: eu.tenantId ?? null, base: config.base, usuario: eu.user ?? null, modulos: eu.modules ?? [] } : null
+  return tudoCerto ? { companyId: empresa.id, nome: empresa.name ?? `conta nº ${empresa.id}`, base: config.base, usuario: eu.user ?? null, modulos: eu.modules ?? null, contagem: eu.counts ?? null } : null
 }
 
 async function conferir() {
@@ -122,9 +127,6 @@ async function conferir() {
   }
   ledger.origem = resultado.origem
   ledger.destino = resultado.destino
-  if (resultado.origem.tenantId !== resultado.destino.tenantId) {
-    ledger.mesmoTenant = false
-  } else ledger.mesmoTenant = true
   etapa(ledger, 'acesso', 'feito', `${resultado.origem.nome} → ${resultado.destino.nome}`)
   registrar(ledger, `Acesso conferido: ${resultado.origem.nome} → ${resultado.destino.nome}`)
   salvar(ledger)

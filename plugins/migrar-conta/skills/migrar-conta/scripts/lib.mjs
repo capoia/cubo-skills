@@ -147,19 +147,28 @@ export async function api(conta, metodo, rota, dado, config = exigeAcesso(conta)
   }
 }
 
-// Lê todas as páginas de uma lista paginada ({data, meta}) ou uma lista simples.
+const POR_PAGINA = 100
+
+// Lê todas as páginas de uma lista. O Cubo responde `{ data, metadata: { lastPage } }`; lista simples
+// também serve. 500 é o teto por página do Cubo.
 export async function todos(conta, rota) {
   const separador = rota.includes('?') ? '&' : '?'
   const itens = []
   for (let pagina = 1; pagina < 10_000; pagina++) {
-    const corpo = await api(conta, 'GET', `${rota}${separador}page=${pagina}&perPage=100`)
+    const corpo = await api(conta, 'GET', `${rota}${separador}page=${pagina}&perPage=${POR_PAGINA}`)
     if (Array.isArray(corpo)) return corpo
     const lista = corpo?.data ?? []
     itens.push(...lista)
-    const ultima = corpo?.meta?.lastPage ?? 1
+    const ultima = corpo?.metadata?.lastPage ?? corpo?.meta?.lastPage ?? 1
     if (pagina >= ultima || lista.length === 0) break
   }
   return itens
+}
+
+// Um item pelo id. A maioria das rotas devolve o objeto direto; formulário e landing, em `{ data }`.
+export async function detalhe(conta, rota, id, consulta = '') {
+  const corpo = await api(conta, 'GET', `${rota}/${id}${consulta}`)
+  return corpo && typeof corpo === 'object' && !Array.isArray(corpo) && !('id' in corpo) && corpo.data && typeof corpo.data === 'object' ? corpo.data : corpo
 }
 
 // ---------------------------------------------------------------------------------------------

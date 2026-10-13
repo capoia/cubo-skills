@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto'
 import { AREA, KINDS_DE_DADO, KIND_ARQUIVO, KIND_CHAVE, KIND_PUBLIC_ID, KIND_USUARIO } from './areas.mjs'
 import { carregar, etapa, registrar, salvar } from './ledger.mjs'
-import { api, falha, todos } from './lib.mjs'
+import { detalhe, falha, todos } from './lib.mjs'
 import { ler } from './refs.mjs'
 
 const ledger = carregar()
@@ -38,8 +38,7 @@ try {
   const criados = Object.values(ledger.itens).filter((item) => item.status === 'criado')
   for (const item of criados) {
     const area = AREA[item.kind]
-    const resposta = await api('destino', 'GET', `${area.rota}/${item.destinoId}?include=refs`)
-    const registro = resposta?.data ?? resposta
+    const registro = await detalhe('destino', area.rota, item.destinoId, '?include=refs')
     conferidos++
     const rotulo = `${area.rotulo} “${item.nome}” (nº ${item.destinoId} na conta nova)`
 

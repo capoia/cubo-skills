@@ -10,8 +10,9 @@ prompt de um agente guarda o número do campo personalizado, e na conta nova ess
 A skill troca todos e, no fim, relê tudo na conta nova para provar que nenhum número da conta antiga
 sobrou.
 
-> **Estado:** em construção (0.1). Depende das rotas novas da API do Cubo, que estão sendo feitas.
-> Antes delas o acesso falha em `GET /api/whoami`.
+> **Estado:** em construção (0.1). A leitura da conta antiga já existe no Cubo; a criação na conta
+> nova ainda está sendo feita. Até lá, a conferência de acesso barra a conta nova por falta de
+> permissão de criação.
 
 ## Antes de usar
 
