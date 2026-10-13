@@ -204,6 +204,8 @@ Quem já instalou atualiza com `/plugin update <plugin>` (ou `claude plugin upda
   lateral com `innerWidth` nunca acusa nada — a régua é a largura pedida.
 - **No teste, `spawnSync` congela o Cubo de mentira** que roda no mesmo processo. A fumaça usa
   `spawn` assíncrono de propósito.
+- **`import()` de caminho absoluto quebra no Windows** (`D:\…` vira o protocolo `d:`). Use
+  `pathToFileURL(caminho).href`. Pego pelo CI na primeira rodada do `migrar-conta`.
 - **`sharp` 0.35 mudou a entrada para `dist/`.** Não importe caminho interno de pacote; resolva pelo
   nome (`createRequire(...)('sharp')`).
 

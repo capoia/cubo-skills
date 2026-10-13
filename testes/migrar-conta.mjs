@@ -8,11 +8,11 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'migrar-conta', 'skills', 'migrar-conta', 'scripts')
-const { AREAS } = await import(join(SCRIPTS, 'areas.mjs'))
-const { aplicarRefs, trocarTrechos } = await import(join(SCRIPTS, 'refs.mjs'))
+const { AREAS } = await import(pathToFileURL(join(SCRIPTS, 'areas.mjs')).href)
+const { aplicarRefs, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
 
 const PASTA = mkdtempSync(join(tmpdir(), 'cubo-migracao-'))
 const resultados = []
