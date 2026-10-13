@@ -90,7 +90,7 @@ export async function abrirNavegador() {
 
 export async function baixar(url, limiteBytes = 25 * 1024 * 1024) {
   const resposta = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; cubo-landing/2.0)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; cubo-skills/criar-landing-html)' },
     redirect: 'follow',
     signal: AbortSignal.timeout(30_000),
   })

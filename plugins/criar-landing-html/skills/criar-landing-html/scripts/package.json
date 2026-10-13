@@ -1,5 +1,5 @@
 {
-  "name": "cubo-landing-scripts",
+  "name": "criar-landing-html-scripts",
   "private": true,
   "type": "module",
   "description": "Scripts da skill de landing page do Cubo. Rodam em Windows, macOS e Linux, só com o Node.",

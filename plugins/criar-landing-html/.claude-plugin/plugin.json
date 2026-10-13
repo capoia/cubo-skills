@@ -1,12 +1,12 @@
 {
-  "name": "cubo-landing",
-  "version": "2.4.2",
+  "name": "criar-landing-html",
+  "version": "3.0.0",
   "description": "Cria, publica e edita landing pages no Cubo: lê o site do cliente para pegar a identidade, entrevista, escreve a página em HTML, monta o formulário, publica no domínio e mede o PageSpeed. Windows, macOS e Linux, só com Node.",
   "author": {
     "name": "Cubo Suite"
   },
-  "homepage": "https://github.com/capoia/cubo-lp-skill",
-  "repository": "https://github.com/capoia/cubo-lp-skill",
+  "homepage": "https://github.com/capoia/cubo-skills",
+  "repository": "https://github.com/capoia/cubo-skills",
   "license": "UNLICENSED",
   "keywords": [
     "landing page",
