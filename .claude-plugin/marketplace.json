@@ -14,6 +14,16 @@
         "name": "Cubo Suite"
       },
       "license": "UNLICENSED"
+    },
+    {
+      "name": "migrar-conta",
+      "source": "./plugins/migrar-conta",
+      "version": "0.1.0",
+      "description": "Copia a configuração de uma conta do Cubo para outra, trocando todos os IDs internos, com conferência e relatório.",
+      "author": {
+        "name": "Cubo Suite"
+      },
+      "license": "UNLICENSED"
     }
   ]
 }

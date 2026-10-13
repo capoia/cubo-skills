@@ -14,9 +14,7 @@ nada). Por isso não há skill "instaladora": a tela do `/plugin` já pergunta.
 | Plugin | Skill |
 | --- | --- |
 | `criar-landing-html` | criar, publicar e editar landing page em HTML no Cubo, pela API, com entrevista, SEO e PageSpeed |
-
-Próxima: migração entre contas, que espera a API do `cubo-crm` exportar e importar agentes de IA e
-automações.
+| `migrar-conta` | copiar a configuração de uma conta do Cubo para outra, trocando os IDs pelos `refs` da API. Em construção: **leia `docs/migrar-conta/LEDGER.md` antes de mexer** |
 
 Quem instala roda:
 
@@ -44,8 +42,11 @@ plugins/criar-landing-html/
     references/*.md    o detalhe, lido sob demanda
     scripts/*.mjs      Node: requisitos, cliente da API, raio-x da marca, anúncios, imagem, vídeo, ícone, teste final,
                        prévia, backup e medição (package.json com sharp, playwright e ffmpeg-static)
-testes/fumaca.mjs    teste dos scripts contra um Cubo de mentira
-.github/workflows/   o CI que roda a fumaça em Windows, macOS e Linux
+plugins/migrar-conta/            mesma forma; scripts sem dependência nenhuma
+docs/migrar-conta/               LEDGER do desenvolvimento e o briefing da API para o cubo-crm
+testes/fumaca.mjs    teste dos scripts da landing contra um Cubo de mentira
+testes/migrar-conta.mjs          o mesmo para a migração (Cubo de mentira com duas contas)
+.github/workflows/   o CI que roda as duas fumaças em Windows, macOS e Linux
 ```
 
 **Cada plugin é autocontido.** O Claude Code copia cada plugin isolado para o cache, então nada de
@@ -126,6 +127,7 @@ prometer `status` e `css`, que a API recusa de propósito.
    ```bash
    claude plugin validate .
    claude plugin validate plugins/criar-landing-html
+   claude plugin validate plugins/migrar-conta
    ```
 
 2. **Instale a partir da pasta local**, sem passar pelo GitHub:
@@ -142,6 +144,7 @@ prometer `status` e `css`, que a API recusa de propósito.
 
    ```bash
    node testes/fumaca.mjs
+   node testes/migrar-conta.mjs
    ```
 
    O CI roda a mesma coisa em Windows, macOS e Linux, com Node 20 e 22, em todo PR. **É a única

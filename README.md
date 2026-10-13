@@ -26,6 +26,7 @@ Para instalar uma direto, sem a lista:
 | Plugin | O que faz |
 | --- | --- |
 | [`criar-landing-html`](plugins/criar-landing-html/README.md) | Cria, publica e edita landing page em HTML no Cubo: identidade do site do cliente, entrevista, formulário que gera negociação, domínio, SEO e PageSpeed. |
+| [`migrar-conta`](plugins/migrar-conta/README.md) | Copia a configuração de uma conta do Cubo para outra (funis, campos, formulários, landing pages, automações, agentes de IA…), trocando todos os IDs internos, com conferência e relatório. Em construção. |
 
 ## Atualizar
 

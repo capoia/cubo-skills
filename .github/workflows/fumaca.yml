@@ -20,5 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: fumaça
+      - name: fumaça (criar-landing-html)
         run: node testes/fumaca.mjs
+      - name: fumaça (migrar-conta)
+        run: node testes/migrar-conta.mjs

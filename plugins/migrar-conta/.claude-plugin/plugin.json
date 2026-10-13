@@ -1,0 +1,19 @@
+{
+  "name": "migrar-conta",
+  "version": "0.1.0",
+  "description": "Copia a configuração de uma conta do Cubo para outra — funis, campos, formulários, landing pages, automações, agentes de IA e o resto —, trocando todos os IDs internos, conferindo no fim e entregando um relatório. Só roda quando chamada com /migrar-conta.",
+  "author": {
+    "name": "Cubo Suite"
+  },
+  "homepage": "https://github.com/capoia/cubo-skills",
+  "repository": "https://github.com/capoia/cubo-skills",
+  "license": "UNLICENSED",
+  "keywords": [
+    "cubo",
+    "crm",
+    "migração",
+    "copiar conta",
+    "automações",
+    "agentes de ia"
+  ]
+}
