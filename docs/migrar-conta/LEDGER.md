@@ -27,7 +27,8 @@ Documentos irmãos:
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
 | Relatório HTML | `scripts/relatorio.mjs` | ✅ 2026-10-13 |
 | Fumaça no CI (25 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
-| Ambiente local com contas semeadas (slot do `cubo-crm`) | slot 4, `../cubo-crm-wt-migrar-conta-teste` (porta 3337, banco `crm_wt4`) | ✅ 2026-10-14 — ver "Teste contra o CRM real" |
+| Ambiente local com contas semeadas (slot do `cubo-crm`) | slot 4, `../cubo-crm-wt-migrar-conta-teste` (porta 3337, banco `crm_wt4`) | ✅ 2026-10-14 — ver "Teste contra o CRM real". Desmontado no mesmo dia (`backlog-worktree-teardown.sh`); o banco `crm_wt4` ficou, como o script faz |
+| Teste na mão pelo Wellington, com o plugin instalado | `/cubo:migrar-conta` | ✅ 2026-10-14 |
 | Evals (conta vazia, nome repetido, referência inexistente) | `evals/evals.json` | ⏳ depois do ambiente |
 
 ## Decisões
@@ -306,3 +307,6 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   tarefa de canal sem repetição; "aguardando" (⏳) em vez de bloqueado quando só falta a pessoa
   conectar um canal; dois itens de mesmo nome na conta antiga viram duas cópias sem perguntar;
   referências com a lista de nomes únicos atualizada.
+- **2026-10-14** — Slot desmontado. Assunto fechado: a skill está na `main` (plugin `cubo` 4.1.0).
+  Pendentes, todos do lado do CRM: `whoami.company.publicHosts` (SDK de marca branca), `apiKey.userId`
+  no `whoami`, e o `import-url` na mesma conta que não copia para a pasta da finalidade.
