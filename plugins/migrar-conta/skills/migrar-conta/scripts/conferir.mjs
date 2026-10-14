@@ -71,8 +71,8 @@ try {
 
     // Textos grandes: o que voltou tem que ser igual ao que foi mandado (mesma impressão digital).
     for (const [campo, { tamanho, hash }] of Object.entries(item.textos || {})) {
-      const voltou = ler(registro, campo)
-      if (typeof voltou !== 'string') continue
+      // O Cubo apara as pontas e grava texto vazio como null: compara do mesmo jeito.
+      const voltou = String(ler(registro, campo) ?? '').trim()
       if (createHash('sha256').update(voltou).digest('hex') === hash) continue
       problemas.push({
         item: rotulo,

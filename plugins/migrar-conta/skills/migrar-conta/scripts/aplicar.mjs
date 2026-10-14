@@ -47,25 +47,36 @@ function digitais(area, corpo, anteriores = {}) {
   const resultado = { ...anteriores }
   for (const campo of area.textoGrande || []) {
     if (typeof corpo[campo] !== 'string') continue
-    resultado[campo] = { tamanho: corpo[campo].length, hash: createHash('sha256').update(corpo[campo]).digest('hex') }
+    // O Cubo tira os espaços das pontas de todo texto que recebe: a impressão é do texto já aparado.
+    const texto = corpo[campo].trim()
+    resultado[campo] = { tamanho: texto.length, hash: createHash('sha256').update(texto).digest('hex') }
   }
   return Object.keys(resultado).length ? resultado : undefined
 }
 
 // ---------------------------------------------------------------------------------------------
-// Arquivos: cada URL da conta antiga é copiada uma vez para o storage da conta nova.
+// Arquivos: cada URL da conta antiga é copiada para o storage da conta nova, na pasta da finalidade
+// (imagem de produto só vale na pasta de produto). O Cubo NÃO deduplica — cada chamada é uma cópia
+// nova que conta na cota —, então o par fica no ledger e o ledger é gravado na hora.
+
+const chaveArquivo = (item, url) => `${AREA[item.kind].proposito}|${url}`
 
 async function copiarArquivos(refs, item) {
   for (const ref of refs) {
-    if (ref.kind !== KIND_ARQUIVO || noMapa(ledger, KIND_ARQUIVO, ref.id) !== undefined) continue
+    const chave = chaveArquivo(item, ref.id)
+    if (ref.kind !== KIND_ARQUIVO || noMapa(ledger, KIND_ARQUIVO, chave) !== undefined) continue
     try {
-      const resposta = await api('destino', 'POST', '/api/files/import-url', { url: ref.id, purpose: item.kind })
-      mapear(ledger, KIND_ARQUIVO, ref.id, resposta?.data?.url ?? resposta?.url)
+      const resposta = await api('destino', 'POST', '/api/files/import-url', { url: ref.id, purpose: AREA[item.kind].proposito })
+      mapear(ledger, KIND_ARQUIVO, chave, resposta?.data?.url ?? resposta?.url)
     } catch (erro) {
-      if (erro instanceof ErroApi && [401, 403].includes(erro.codigo)) throw erro
-      aviso(ledger, `Não consegui copiar o arquivo ${ref.id} (${erro.message}). Ele continua apontando para a conta antiga.`)
-      mapear(ledger, KIND_ARQUIVO, ref.id, ref.id)
+      if (erro instanceof ErroApi && [401, 403, undefined].includes(erro.codigo)) throw erro
+      if (erro instanceof ErroApi && erro.codigo === 413) throw new ErroApi('o espaço de arquivos da conta nova acabou (413). Libere espaço ou aumente o plano da conta nova e rode o aplicar de novo.', { codigo: 413 })
+      // Nome com acento, extensão que a pasta não aceita, arquivo apagado, acima de 20 MB: sai da
+      // cópia, porque o Cubo recusa arquivo de outra conta.
+      mapear(ledger, KIND_ARQUIVO, chave, null)
+      pendencia(ledger, `${AREA[item.kind].rotulo} “${item.nome}”: o arquivo ${ref.id} não pôde ser copiado (${erro.message}) e ficou de fora. Suba de novo na conta nova.`, { kind: item.kind, origemId: item.origemId })
     }
+    salvar(ledger)
   }
 }
 
@@ -83,7 +94,14 @@ function decisorPara(item) {
       return { novo: escolha }
     }
     if (KINDS_DE_DADO.has(ref.kind)) return { remover: true }
-    if (ref.kind === KIND_ARQUIVO) return { novo: noMapa(ledger, KIND_ARQUIVO, id) ?? ref.id }
+    if (ref.kind === KIND_ARQUIVO) {
+      const novo = noMapa(ledger, KIND_ARQUIVO, chaveArquivo(item, id))
+      if (novo === null) return { remover: true }
+      return novo === undefined ? { faltando: true } : { novo }
+    }
+    // A chave de API publicada no formulário do construtor: o Cubo só aceita a da conta nova, e a
+    // única que a skill tem é a da migração (com permissão de escrita) — publicar essa numa página
+    // seria entregar a conta. Sai, e a pessoa salva o formulário no construtor.
     if (ref.kind === KIND_CHAVE) {
       pendencia(ledger, `${areaAtual.rotulo} “${item.nome}”: o formulário do construtor usava a chave de API da conta antiga, que foi retirada. Abra a página no construtor, clique no formulário e salve, para ele passar a usar a conta nova.`, { kind: item.kind, origemId: item.origemId })
       return { remover: true }
@@ -176,7 +194,21 @@ async function processar(chave) {
     item.erro = `sem par na conta nova para: ${trocado.faltando.map((ref) => `${ref.kind} nº ${ref.id}`).join(', ')}`
     return
   }
-  const corpo = corpoParaCriar(area, trocado.registro)
+  const corpo = corpoParaCriar(area, trocado.registro, { destino: ledger.destino?.base })
+  for (const [campo, limite] of Object.entries(area.limites || {})) {
+    const tamanho = typeof corpo[campo] === 'string' ? corpo[campo].trim().length : 0
+    if (tamanho > limite) {
+      item.status = 'erro'
+      item.erro = `tem ${tamanho.toLocaleString('pt-BR')} caracteres, e a conta nova aceita até ${limite.toLocaleString('pt-BR')}. Divida em duas na conta antiga e rode o plano de novo.`
+      return
+    }
+  }
+
+  // "Criar outro igual" onde o Cubo não aceita nome repetido: o novo ganha um sufixo. Antes da busca
+  // abaixo, para a retomada achar o que nós criamos, e não o que já existia.
+  if (ledger.decisoes.existentes[chave] === 'criar' && area.nomeUnico && typeof corpo[area.campoNome] === 'string') {
+    corpo[area.campoNome] = `${corpo[area.campoNome]} (migrado)`
+  }
 
   // Já existe na conta nova? Se caiu no meio de um envio, o que existe é o que nós criamos.
   if (item.status === 'enviando' || ledger.decisoes.existentes[chave] !== 'criar') {
@@ -237,7 +269,7 @@ async function processar(chave) {
     if (item.kind === 'domain' && erro.codigo === 422) {
       item.status = 'aguardando'
       item.erro = erro.message
-      pendencia(ledger, `Domínio ${corpo.domain}: tire da conta antiga (Configurações → Domínios → excluir) e rode a migração de novo. As páginas dele ficam fora do ar até a conta nova verificar o domínio.`, { kind: item.kind, origemId: item.origemId })
+      pendencia(ledger, `Domínio ${corpo.domain}: ainda está em outra conta. Na conta antiga, mova ou exclua as páginas e formulários que usam esse domínio (inclusive os da lixeira: esvazie a lixeira), exclua o domínio (Configurações → Domínios → excluir) e rode a migração de novo. As páginas dele ficam fora do ar até a conta nova verificar o domínio.`, { kind: item.kind, origemId: item.origemId })
       return
     }
     item.status = 'erro'
@@ -280,6 +312,49 @@ async function segundaPassada() {
   etapa(ledger, 'segunda-passada', faltam ? 'bloqueado' : 'feito', faltam ? `${faltam} itens ainda sem todas as ligações` : `${itens.length} itens ligados`)
 }
 
+// Funil nasce sem etapas e cada etapa nova vai para o fim: com todas criadas, a ordem da conta antiga
+// vai de uma vez (o Cubo exige a lista inteira das etapas do funil).
+async function ordenarEtapas() {
+  for (const funil of Object.values(ledger.itens)) {
+    if (funil.kind !== 'pipe' || funil.status !== 'criado' || funil.etapasOrdenadas) continue
+    const etapas = Object.values(ledger.itens).filter((item) => item.kind === 'stage' && String(registroDeOrigem('stage', item.origemId)?.pipeId) === String(funil.origemId))
+    if (!etapas.length || etapas.some((item) => !['criado', 'usado', 'pulado'].includes(item.status))) continue
+    const ordemNaOrigem = (item) => Number(registroDeOrigem('stage', item.origemId)?.orderNr ?? 0)
+    const nossas = etapas.filter((item) => item.destinoId).sort((a, b) => ordemNaOrigem(a) - ordemNaOrigem(b)).map((item) => item.destinoId)
+    try {
+      const doFunil = await todos('destino', `/api/stages?pipe=${funil.destinoId}`)
+      const outras = doFunil.map((etapa) => etapa.id).filter((id) => !nossas.includes(id))
+      await api('destino', 'PUT', `/api/pipes/${funil.destinoId}/stages-order`, { stageIds: [...nossas, ...outras] })
+      funil.etapasOrdenadas = true
+    } catch (erro) {
+      if (erro instanceof ErroApi && [401, 403, undefined].includes(erro.codigo)) throw erro
+      aviso(ledger, `Funil “${funil.nome}”: não consegui pôr as etapas na ordem da conta antiga (${erro.message}). Arraste na tela do funil.`)
+      funil.etapasOrdenadas = true
+    }
+    salvar(ledger)
+  }
+}
+
+// Automação que estava publicada na conta antiga é publicada também na nova, depois de todas as
+// ligações (o PUT da 2ª passada troca o rascunho). Publicar não liga: ela continua desligada.
+async function publicarAutomacoes() {
+  for (const item of Object.values(ledger.itens)) {
+    if (item.kind !== 'automation' || item.status !== 'criado' || item.publicada || item.segundaPassada?.length) continue
+    if (registroDeOrigem('automation', item.origemId)?.publishedVersion == null) continue
+    try {
+      await api('destino', 'POST', `/api/automations/${item.destinoId}/publish`, {})
+      item.publicada = true
+      delete item.erro
+    } catch (erro) {
+      if (erro instanceof ErroApi && [401, 403, undefined].includes(erro.codigo)) throw erro
+      item.erro = `publicar: ${erro.message}`
+      aviso(ledger, `Automação “${item.nome}”: foi criada, mas não consegui publicar (${erro.message}). Abra, confira e publique na tela.`)
+      item.publicada = false
+    }
+    salvar(ledger)
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 
 try {
@@ -296,8 +371,11 @@ try {
     const doTipo = Object.values(ledger.itens).filter((item) => item.kind === area.kind)
     const prontos = doTipo.filter((item) => ['criado', 'usado', 'pulado'].includes(item.status)).length
     console.log(`  ${prontos === doTipo.length ? '✔' : '…'} ${area.rotulo}: ${prontos}/${doTipo.length} prontos`)
+    if (area.kind === 'stage') await ordenarEtapas()
   }
+  await ordenarEtapas()
   await segundaPassada()
+  await publicarAutomacoes()
 } catch (erro) {
   etapa(ledger, 'aplicar', 'erro', erro.message)
   registrar(ledger, `Aplicar parou: ${erro.message}`)

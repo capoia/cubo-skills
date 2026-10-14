@@ -153,6 +153,9 @@ try {
     const soltos = numerosSemRef(registro)
     if (soltos.length) aviso(ledger, `Agente “${rotuloDe(registro)}”: o prompt cita ${soltos.join(', ')} num nome de ferramenta que o Cubo não sabe a que se refere. Esse número NÃO será trocado: confira o prompt na conta nova depois da migração.`)
   }
+  for (const { kind, registro } of itens.values()) {
+    if (kind === 'automation' && registro.hasUnpublishedChanges) aviso(ledger, `Automação “${rotuloDe(registro)}”: tem alterações não publicadas na conta antiga. Vai a versão PUBLICADA; o que estava só no rascunho fica para trás.`)
+  }
   if (refsDeDado) aviso(ledger, `${refsDeDado} configurações apontam para negociações, pessoas ou organizações específicas (dados, que não se migram). Essas referências serão retiradas.`)
 
   // Foto da origem, por área, só com o que vai ser migrado.

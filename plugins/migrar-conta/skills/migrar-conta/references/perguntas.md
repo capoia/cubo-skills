@@ -24,7 +24,8 @@ nome. Quer a mesma resposta para todos?". As opções são "Usar os que já exis
   conta nova. Quem fica no lugar dela?". Usuário não se cria pela migração: se a pessoa quiser a Bia
   na conta nova, ela precisa ser cadastrada no Cubo antes, e aí o `plano` roda de novo.
 - **Já existe**: "Usar o que já existe" liga tudo ao item da conta nova sem mexer nele. "Criar outro"
-  pode falhar quando o Cubo exige nome único (campos, agentes, formulários).
+  cria uma cópia; onde o Cubo exige nome único (categorias, produtos, motivos, etapas, agentes,
+  bases, pastas, filtros), a cópia ganha " (migrado)" no fim do nome. Diga isso ao perguntar.
 - **Domínio**: o mesmo domínio não pode estar nas duas contas. "Tirar da conta antiga" deixa as
   páginas dele fora do ar até a conta nova verificar o domínio, e quem tira é a pessoa, na tela
   (Configurações → Domínios), porque a migração não altera a conta antiga. "Outro domínio" é mais

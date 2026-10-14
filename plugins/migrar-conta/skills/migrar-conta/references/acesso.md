@@ -35,7 +35,8 @@ Troque `<scripts>` pelo caminho completo dos scripts antes de mandar.
 - se cada chave conecta (o Cubo responde e reconhece a chave);
 - se cada chave é de um administrador;
 - se cada chave tem as permissões das áreas escolhidas: leitura na antiga; leitura, criação e
-  edição na nova; e a leitura de usuários nas duas;
+  edição na nova (domínio só leitura e criação; MCP só leitura), mais "Arquivos: criação" na nova
+  (para copiar imagens); e a leitura de usuários nas duas;
 - se as duas chaves não são da mesma conta.
 
 Cada ✘ vem com o que fazer. Repasse o texto em palavras simples e peça para a pessoa corrigir no

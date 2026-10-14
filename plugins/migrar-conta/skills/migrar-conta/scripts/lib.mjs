@@ -108,9 +108,12 @@ function explica(codigo, conta, metodo, rota, corpo) {
 
 const espera = (ms) => new Promise((pronto) => setTimeout(pronto, ms))
 
-// GET tenta de novo em 429/5xx/queda de rede. Escrita NÃO: um POST repetido às cegas duplicaria.
+// GET tenta de novo em 429/5xx/queda de rede. Escrita só em 429: o Cubo recusou sem executar (teto
+// de 240 escritas de configuração por minuto por chave). 5xx e queda numa escrita NÃO repetem: o
+// POST pode ter sido feito, e repetir às cegas duplicaria.
 export async function api(conta, metodo, rota, dado, config = exigeAcesso(conta)) {
   const tentativas = metodo === 'GET' ? 4 : 1
+  let esperasPorTeto = 0
   for (let tentativa = 1; ; tentativa++) {
     let resposta
     try {
@@ -139,6 +142,14 @@ export async function api(conta, metodo, rota, dado, config = exigeAcesso(conta)
       corpo = { message: texto.slice(0, 300) }
     }
     if (resposta.ok) return corpo
+    if (resposta.status === 429 && esperasPorTeto < 8) {
+      esperasPorTeto++
+      const cabecalho = resposta.headers.get('retry-after')
+      const pedido = cabecalho === null ? NaN : Number(cabecalho)
+      await espera(Number.isFinite(pedido) && pedido >= 0 ? pedido * 1000 : Math.min(60_000, 5000 * esperasPorTeto))
+      tentativa--
+      continue
+    }
     if ((resposta.status === 429 || resposta.status >= 500) && tentativa < tentativas) {
       await espera(1500 * tentativa)
       continue

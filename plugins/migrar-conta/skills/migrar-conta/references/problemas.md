@@ -11,9 +11,16 @@ O motivo vem escrito. Os mais comuns:
 - **"recusou os dados (422): … não pertence a esta conta"**: algum número não foi trocado. Isso não
   devia acontecer. Não tente contornar: mostre à pessoa e anote o item. Em geral, é tipo novo de
   configuração que o Cubo ainda não informa nos `refs`.
-- **"recusou os dados (422): já existe / nome em uso"**: a pessoa escolheu "criar outro igual" num
-  item que exige nome único. Pergunte de novo, com "usar" ou "pular"
+- **"recusou os dados (422): já existe / nome em uso"**: com "criar outro igual", a skill já põe
+  " (migrado)" no fim do nome onde o Cubo exige nome único. Se ainda assim deu nome repetido (já
+  existe um "(migrado)" de uma rodada anterior), pergunte de novo, com "usar" ou "pular"
   (`decidir.mjs existente <área:nº> usar`), e rode o `aplicar` de novo.
+- **"tem N caracteres, e a conta nova aceita até 200.000"**: base de conhecimento grande demais
+  para a conta nova. A pessoa divide em duas na conta antiga, e o `plano` roda de novo.
+- **"espaço de arquivos da conta nova acabou (413)"**: o aplicar para. A pessoa libera espaço ou
+  aumenta o plano da conta nova, e roda de novo.
+- **"a conta nova pediu para ir mais devagar (429)"**: o Cubo aceita 240 escritas por minuto por
+  chave. A skill já espera e repete sozinha; se mesmo assim aparecer, espere um minuto e rode de novo.
 - **"sem par na conta nova para: …"**: o item usa algo que ficou sem correspondente. Normalmente é
   uma conexão MCP sem decisão, ou um formulário que deu erro antes. Resolva o item de cima e rode de
   novo.
@@ -27,8 +34,9 @@ Esperam algo que só a pessoa pode fazer, ou outro item ficar pronto:
   na conta nova. Pode ficar para depois: está no relatório. Quando a pessoa conectar, rode o
   `aplicar` de novo.
 - **Domínio "tirar da conta antiga"**: a pessoa precisa excluir o domínio na conta antiga
-  (Configurações → Domínios). Depois, rode o `aplicar` de novo. As landing pages desse domínio
-  esperam junto.
+  (Configurações → Domínios). O Cubo só deixa excluir domínio que nenhuma página ou formulário usa,
+  **contando a lixeira**: antes, ela tira essas páginas do domínio (ou exclui e esvazia a lixeira).
+  Depois, rode o `aplicar` de novo. As landing pages desse domínio esperam junto.
 - **"espera X ficar pronto"**: resolva o X.
 
 ## A conferência acusou problemas
@@ -41,6 +49,9 @@ Esperam algo que só a pessoa pode fazer, ou outro item ficar pronto:
   está em `migracao/origem/<área>.json`.
 - **"ainda usa um arquivo guardado na conta antiga"**: é aviso, não erro. A imagem funciona, mas
   depende da conta antiga continuar existindo.
+- **Arquivo que "não pôde ser copiado"** (nome com acento, extensão que a pasta não aceita, mais de
+  20 MB, apagado): ficou de fora do item, e está nas tarefas do relatório. A pessoa sobe de novo na
+  tela.
 
 ## Nunca
 

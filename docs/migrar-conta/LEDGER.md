@@ -17,16 +17,16 @@ Documentos irmãos:
 | --- | --- | --- |
 | Estudo do CRM e briefing da API | `docs/migrar-conta/API-NECESSARIA.md` | ✅ 2026-10-13 |
 | Rotas de **leitura** + `refs` no CRM (A0–A6) | `capoia/cubo-crm` #419–#431 | ✅ 2026-10-13, em produção |
-| Rotas de **criação/edição** no CRM | `capoia/cubo-crm` (outra janela) | ⏳ |
+| Rotas de **criação/edição** no CRM (B1–B6) | `capoia/cubo-crm` #433, #438–#442 | ✅ 2026-10-14 |
+| Escrita da skill ajustada ao CRM real | `aplicar.mjs`, `areas.mjs`, `conta.mjs`, `lib.mjs` | ✅ 2026-10-14 |
 | Leitura da skill ajustada ao CRM real | `lib.mjs`, `conta.mjs`, `plano.mjs`, `refs.mjs`, `areas.mjs` | ✅ 2026-10-13 |
 | Esqueleto do plugin, ledger de execução, acesso às duas contas | `plugins/migrar-conta`, `conta.mjs`, `ledger.mjs` | ✅ 2026-10-13 |
 | Plano (leitura da origem, dependências, usuários, já existentes) | `scripts/plano.mjs`, `decidir.mjs` | ✅ 2026-10-13 |
 | Aplicar (troca de IDs, segunda passada, retomada) | `scripts/aplicar.mjs`, `refs.mjs` | ✅ 2026-10-13 |
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
 | Relatório HTML | `scripts/relatorio.mjs` | ✅ 2026-10-13 |
-| Fumaça no CI (17 casos, Cubo de mentira com duas contas no formato real do CRM) | `testes/migrar-conta.mjs` | ✅ |
-| Ajustar o catálogo às rotas de escrita quando o CRM entregar | `scripts/areas.mjs` | ⏳ |
-| Ambiente local com contas semeadas (slot do `cubo-crm`) | — | ⏳ depois das rotas |
+| Fumaça no CI (17 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
+| Ambiente local com contas semeadas (slot do `cubo-crm`) | — | ⏳ próximo |
 | Evals (conta vazia, nome repetido, referência inexistente) | `evals/evals.json` | ⏳ depois do ambiente |
 
 ## Decisões
@@ -42,6 +42,11 @@ Documentos irmãos:
 | 2026-10-13 | Landing do construtor continua editável no construtor (o CRM vai aceitar `components`/`styles`) | migrar como HTML tiraria a edição |
 | 2026-10-13 | Domínio: a pessoa escolhe entre tirar da origem (fora do ar até verificar) e um domínio temporário | não existe nas duas contas ao mesmo tempo |
 | 2026-10-13 | Chave da origem só lê; a skill **nunca escreve na conta de origem** | migração errada não pode estragar a conta que está funcionando |
+| 2026-10-14 | A chave de API do formulário do construtor (`keycubo`) **sai** da landing, com pendência | o Cubo só aceita a chave da conta nova, e a única que a skill tem é a da migração, com escrita: publicá-la numa página entregaria a conta |
+| 2026-10-14 | A skill não exclui o domínio da conta antiga, mesmo com `domains:delete` existindo | a regra "nunca escrever na origem" vale também aqui; a pessoa exclui na tela |
+| 2026-10-14 | "Criar outro igual" em área de nome único põe " (migrado)" no nome | o Cubo recusa o repetido com 422; perguntar de novo cansaria a pessoa |
+| 2026-10-14 | Automação publicada na origem é publicada no destino depois da 2ª passada; nunca ligada | publicar não liga nada; o PUT troca o rascunho, então publicar antes perderia as ligações |
+| 2026-10-14 | Arquivo copiado por **finalidade** (`produto|url`), uma vez só | imagem de produto só vale na pasta de produto; o `import-url` não deduplica e conta na cota |
 | 2026-10-13 | Skill com `disable-model-invocation: true` | escreve em conta de cliente: só roda quando a pessoa chama `/migrar-conta` |
 | 2026-10-13 | Scripts **sem dependência** (só Node 20.9+, `fetch` nativo) | nada para instalar na máquina de leigo |
 
@@ -87,24 +92,33 @@ Fonte da verdade da leitura, no `cubo-crm`: `start/routes/api.ts`, `app/refs/*`,
 - [x] refs do mesmo `path` aplicados de uma vez, sobre o original (CSV com `token` = valor inteiro,
       chaves de objeto que cruzam o mapa)
 
-**Falta confirmar (rotas de escrita):**
+**Confirmado na escrita (2026-10-14):**
 
-- [ ] escopos de `create`/`update` de cada área (hoje quase todas só têm `read`, então a conferência
-      barra a conta nova — é o certo até a escrita existir)
-- [ ] POST aceita ref nula nos campos que a skill adia para a segunda passada (ex.: `start_flow`
-      apontando para automação ainda não criada)
-- [ ] POST de formulário devolve o `publicId` novo
-- [ ] `POST /api/files/import-url` (copiar arquivo do storage da conta antiga)
-- [ ] o que o POST faz com os campos só de leitura: `headerNames` do nó HTTP, `hasClientSecret`,
-      `members` do funil, `customfieldIds`/`lostReasonIds` da etapa, `assets`/`components`/`styles`
-- [ ] landing do construtor: o que fazer com o `keycubo` (a skill hoje esvazia e deixa pendência; o
-      CRM aceitou o risco de a chave ficar no HTML)
+- [x] escopos de `create`/`update` em todas as áreas, menos domínio (`read`/`create`) e MCP (`read`);
+      `files:create` para o `import-url`. Funil, etapa, credencial, agente e base exigem admin
+- [x] POST responde 201 com o objeto direto; tag, formulário, landing e template seguem com `{ data }`
+      (`idDe` trata os dois). PUT é parcial
+- [x] `POST /api/files/import-url` `{ url, purpose }` → `{ url, path, copied }`; `purpose` por área
+      (`proposito` no catálogo); 422 tira o arquivo do item, 413 para tudo
+- [x] funil nasce sem etapas; ordem final por `PUT /api/pipes/:id/stages-order` com todas as etapas
+- [x] nascem desligados: integração, intenção, canal, automação (rascunho). Landing: a skill manda
+      `status: deactivated`
+- [x] o Cubo apara as pontas dos textos e grava `""` como `null`: a impressão digital é do texto aparado
+- [x] SDK da página só do endereço da conta: o `preparar` da landing troca o host do `sdk/form.js`
+- [x] teto de 240 escritas/min por chave: 429 numa escrita é repetido (o Cubo recusou sem executar)
+- [x] base de conhecimento acima de ~200 mil caracteres: 422 — a skill barra antes, com o que fazer
+
+**Ainda sem teste contra o CRM de verdade:** tudo acima foi lido no código do CRM e reproduzido no
+Cubo de mentira. O que pode surpreender: campos do GET que o validador recusa (em vez de ignorar),
+a ordem de criação diante das conferências de posse, e módulos desligados na conta nova.
 
 ## Pendências e ideias
 
 - Testar com Haiku, Sonnet e Opus (o modelo segue o fluxo? pergunta com escolha clicável?).
-- Nó HTTP: hoje vira pendência ("preencher os cabeçalhos"). Dá para perguntar os valores na hora
-  e mandar no POST — decidir quando a escrita existir.
+- Nó HTTP e webhook de integração: hoje vira pendência ("preencher os cabeçalhos"). O POST aceita os
+  valores; dá para perguntar na hora (segredo na conversa? provavelmente pelo arquivo, como a chave).
+- Módulo desligado na conta nova (agentes, automações, canais, integrações): hoje cai como erro do
+  item. Dava para conferir no `whoami.modules` antes e barrar no acesso.
 - `send_meta_conversion.eventId` é ID dentro da config da integração, não ref: só funciona se a
   integração da conta nova tiver os mesmos eventos. Avisar no relatório.
 - Evals com `skill-creator` depois que houver ambiente.
@@ -144,3 +158,8 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   de um mesmo objeto de uma vez (12→40 e 40→55 não colidem). Plano avisa número de ferramenta sem
   ref no prompt do agente e deixa pendência dos cabeçalhos do nó HTTP. Fumaça: 17 casos. De
   carona, `criar-landing-html` 3.0.1 lê os domínios com `perPage=500`.
+- **2026-10-14** — O CRM entregou a escrita (B1–B6, #433, #438–#442). Skill 0.2.0: permissões por
+  área (domínio sem edição, MCP só leitura, `files:create`), 429 repetido na escrita, `import-url` por
+  finalidade com par guardado, " (migrado)" em nome único, ordem das etapas, publicação das
+  automações, host do SDK trocado, limite da base, hash do texto aparado, funis trazem as etapas.
+  Fumaça cobre tudo isso (17 casos). Próximo: ambiente local com contas semeadas.

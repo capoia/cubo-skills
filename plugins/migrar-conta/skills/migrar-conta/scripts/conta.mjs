@@ -74,16 +74,20 @@ async function conferirConta(conta, kinds, linhas) {
     ruim(`a chave é do usuário ${eu.user.name}, que não é administrador. Crie a chave com um usuário administrador ou dono da conta: com usuário comum o Cubo esconde parte da configuração.`)
   } else if (eu.user) ok(`chave do usuário ${eu.user.name} (administrador)`)
 
-  const acoes = conta === 'origem' ? ['read'] : ['read', 'create', 'update']
-  const faltam = []
+  // Na origem só se lê. No destino, cada área pede o que ela tem (domínio não tem edição, MCP só se lê).
   // Algumas leituras aceitam também uma permissão mais antiga (etapa e motivo de perda com `pipes:read`).
-  const recursos = new Map([['users', null]])
-  for (const kind of kinds) recursos.set(AREA[kind].escopo, AREA[kind].escopoTambem ?? null)
-  if (kinds.some((kind) => ['landing', 'product', 'pipe', 'automation', 'template'].includes(kind)) && conta === 'destino') recursos.set('files', null)
-  for (const [recurso, alternativo] of recursos) {
+  const precisa = new Map([['users', { acoes: new Set(['read']), alternativo: null }]])
+  const pede = (recurso, acoes, alternativo = null) => {
+    const atual = precisa.get(recurso) || { acoes: new Set(), alternativo }
+    for (const acao of acoes) atual.acoes.add(acao)
+    precisa.set(recurso, atual)
+  }
+  for (const kind of kinds) pede(AREA[kind].escopo, conta === 'origem' ? ['read'] : AREA[kind].acoes, AREA[kind].escopoTambem)
+  // Arquivo do storage da conta antiga (imagem de produto, de proposta, da página…) é copiado.
+  if (conta === 'destino') pede('files', ['create'])
+  const faltam = []
+  for (const [recurso, { acoes, alternativo }] of precisa) {
     for (const acao of acoes) {
-      if (recurso === 'users' && acao !== 'read') continue
-      if (recurso === 'files' && acao !== 'create') continue
       if (temEscopo(eu.apiKey, recurso, acao) || (acao === 'read' && alternativo && temEscopo(eu.apiKey, alternativo, acao))) continue
       faltam.push(`${recurso}:${acao}`)
     }

@@ -55,7 +55,7 @@ const CHAVE_PARA_KIND = {
   pipeId: 'pipe', pipeIds: 'pipe', stageId: 'stage', stageIds: 'stage', customfieldId: 'customfield', customfieldIds: 'customfield',
   tagId: 'tag', tagIds: 'tag', agentId: 'agent', targetAgentId: 'agent', automationId: 'automation', flowIds: 'automation',
   knowledgeBaseId: 'knowledge_base', integrationId: 'integration', defaultAgentId: 'agent', defaultAutomationId: 'automation',
-  userId: 'user', domainId: 'domain', connectionId: 'mcp_connection', primaryField: 'customfield',
+  userId: 'user', domainId: 'domain', connectionId: 'mcp_connection', primaryField: 'customfield', categoriesIds: 'category',
 }
 const PARAMETRO_PARA_KIND = { pipeId: 'pipe', stageId: 'stage', knowledgeBaseId: 'knowledge_base', customfieldId: 'customfield', tagId: 'tag' }
 
@@ -96,7 +96,7 @@ function extrairRefs(kind, objeto) {
     }
     for (const m of valor.matchAll(/\{\{tool:mcp_(\d+)_[a-z_]+\}\}/g)) refs.push({ path: caminho, kind: 'mcp_connection', id: Number(m[1]), token: m[0] })
     if (chave !== 'publicId') for (const m of valor.matchAll(/frm_[a-z0-9]+/g)) refs.push({ path: caminho, kind: 'form_public_id', id: m[0], token: m[0] })
-    for (const m of valor.matchAll(/https:\/\/cdn\.test\/companies\/\d+\/[\w./-]+/g)) {
+    for (const m of valor.matchAll(/https:\/\/cdn\.test\/companies\/\d+\/[^\s"'<>]+/g)) {
       refs.push(m[0] === valor ? { path: caminho, kind: 'file', id: m[0] } : { path: caminho, kind: 'file', id: m[0], token: m[0] })
     }
     if (chave === 'link') {
@@ -119,7 +119,8 @@ const usuarios = {
   1: [{ id: 10, name: 'Ana', email: 'ana@clinica.com' }, { id: 11, name: 'Bia', email: 'bia@clinica.com' }],
   2: [{ id: 20, name: 'Ana', email: 'ANA@clinica.com' }, { id: 21, name: 'Dona', email: 'dona@nova.com' }],
 }
-const falhas = { agentUmaVez: false, cortarPrompt: false }
+const falhas = { agentUmaVez: false, cortarPrompt: false, tetoUmaVez: false }
+const chamadas = { importUrl: 0, publicadas: [], ordens: [] }
 
 function semear(companyId, kind, registros) {
   banco[companyId][kind] = registros.map((r) => ({ ...r }))
@@ -129,9 +130,11 @@ semear(1, 'tag', [{ id: 101, name: 'VIP', color: '#ff0000' }, { id: 102, name: '
 semear(1, 'customfield', [{ id: 201, name: 'Origem', context: 'deal', type: 'select', options: [{ value: 'site' }, { value: 'indicação' }] }, { id: 202, name: 'CPF', context: 'people', type: 'text' }])
 semear(1, 'pipe', [{ id: 301, name: 'Vendas', primaryField: '201', members: [{ userId: 10, splitter: 1, active: true }, { userId: 11, splitter: 1, active: false }], users: [{ id: 10, name: 'Ana' }], stages: [] }])
 semear(1, 'stage', [
-  { id: 401, name: 'Novo', pipeId: 301, customfieldIds: [201] },
-  { id: 402, name: 'Ganho', pipeId: 301, customfieldIds: [] },
+  { id: 401, name: 'Novo', pipeId: 301, orderNr: 2, customfieldIds: [201] },
+  { id: 402, name: 'Ganho', pipeId: 301, orderNr: 1, customfieldIds: [] },
 ])
+semear(1, 'category', [{ id: 1501, name: 'Consultas', status: 'active' }])
+semear(1, 'product', [{ id: 1601, name: 'Avaliação', price: '99.90', categoriesIds: [1501], urlImage: 'https://cdn.test/companies/1/product/avaliação.png' }])
 semear(1, 'knowledge_base', [{ id: 501, name: 'FAQ', content: 'Perguntas frequentes', strategy: 'inline' }])
 semear(1, 'mcp_connection', [{ id: 1201, name: 'Stripe', type: 'stripe' }])
 semear(1, 'agent', [
@@ -149,6 +152,8 @@ semear(1, 'automation', [
     id: 701,
     name: 'Boas-vindas',
     status: 'active',
+    publishedVersion: 3,
+    hasUnpublishedChanges: true,
     flowData: {
       nodes: [
         { id: 'start', type: 'start', data: { triggers: [{ id: 'trigger-1', triggerType: 'deal_created', triggerConfig: { pipeIds: [301], tagIds: [101] } }] } },
@@ -177,11 +182,12 @@ semear(1, 'automation', [
 ])
 semear(1, 'form', [{ id: 801, name: 'Contato', publicId: 'frm_abc', settings: { destination: { pipeId: 301, stageId: 401 } }, fields: [{ id: 201, label: 'Origem' }, { id: 'name', label: 'Nome' }] }])
 semear(1, 'domain', [{ id: 901, domain: 'lp.clinica.com', status: 'active' }])
-semear(1, 'landing', [{ id: 951, title: 'Promo', url: 'promo', domainId: 901, status: 'active', html: '<img src="https://cdn.test/companies/1/landings/a.png"><div id="f"></div><script>new Form({ form: \'frm_abc\', target: \'#f\' })</script>' }])
+semear(1, 'landing', [{ id: 951, title: 'Promo', url: 'promo', domainId: 901, status: 'active', html: '<img src="https://cdn.test/companies/1/landings/a.png"><div id="f"></div><script src="https://antiga.cubo.test/sdk/form.js"></script><script>new Form({ form: \'frm_abc\', target: \'#f\' })</script>' }])
 semear(1, 'integration', [{ id: 1001, name: 'WhatsApp oficial', type: 'whatsapp_business' }])
 semear(1, 'channel', [{ id: 1101, name: 'WhatsApp', integrationId: 1001, defaultAgentId: 601 }])
 semear(1, 'filter', [{ id: 1301, name: 'Meus novos', context: 'deal', userId: 11, pipeId: 301, link: 'pipe=301&stage=401&peoples=5' }])
 semear(2, 'tag', [{ id: 2101, name: 'vip', color: '#00ff00' }])
+semear(2, 'category', [{ id: 2501, name: 'consultas', status: 'active' }])
 semear(2, 'mcp_connection', [{ id: 2201, name: 'Stripe', type: 'stripe' }])
 
 const lista = (companyId, kind) => (banco[companyId][kind] ||= [])
@@ -211,7 +217,7 @@ const servidor = createServer((pedido, resposta) => {
     const [, , recurso, id] = url.pathname.split('/')
 
     // Como o CRM: parâmetro desconhecido é 422.
-    const desconhecido = [...url.searchParams.keys()].find((p) => !['page', 'perPage', 'limit', 'include', 'name'].includes(p))
+    const desconhecido = [...url.searchParams.keys()].find((p) => !['page', 'perPage', 'limit', 'include', 'name', 'pipe'].includes(p))
     if (desconhecido) return responde(resposta, 422, { errors: [{ message: `parâmetro desconhecido: ${desconhecido}` }] })
 
     if (recurso === 'whoami') {
@@ -227,8 +233,30 @@ const servidor = createServer((pedido, resposta) => {
       })
     }
     if (recurso === 'users') return responde(resposta, 200, { data: usuarios[companyId], metadata: { total: usuarios[companyId].length, perPage: 100, currentPage: 1, lastPage: 1 } })
+    if (pedido.method !== 'GET' && falhas.tetoUmaVez) {
+      falhas.tetoUmaVez = false
+      resposta.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '0' })
+      return resposta.end(JSON.stringify({ errors: [{ message: 'Too many requests' }] }))
+    }
     if (recurso === 'files' && id === 'import-url') {
-      return responde(resposta, 200, { data: { url: corpo.url.replace(/companies\/\d+\//, `companies/${companyId}/importados/`) } })
+      chamadas.importUrl++
+      if (!['product', 'proposal', 'landing', 'template', 'automation'].includes(corpo.purpose)) return responde(resposta, 422, { errors: [{ message: 'purpose inválido' }] })
+      if (/[^\x00-\x7f]/.test(corpo.url)) return responde(resposta, 422, { errors: [{ message: 'o nome do arquivo tem acento ou caractere especial' }] })
+      const nova = corpo.url.replace(/companies\/\d+\//, `companies/${companyId}/${corpo.purpose}/`)
+      return responde(resposta, 201, { url: nova, path: new URL(nova).pathname, copied: true })
+    }
+    const sub = url.pathname.split('/')[4]
+    if (recurso === 'pipes' && sub === 'stages-order') {
+      const etapas = lista(companyId, 'stage').filter((e) => String(e.pipeId) === id)
+      const ids = corpo.stageIds.map(String)
+      if (ids.length !== etapas.length || etapas.some((e) => !ids.includes(String(e.id)))) return responde(resposta, 422, { errors: [{ message: 'mande todas as etapas do funil' }] })
+      ids.forEach((etapaId, i) => (etapas.find((e) => String(e.id) === etapaId).orderNr = i + 1))
+      chamadas.ordens.push(ids)
+      return responde(resposta, 200, { stageIds: ids })
+    }
+    if (recurso === 'automations' && sub === 'publish') {
+      chamadas.publicadas.push(Number(id))
+      return responde(resposta, 200, { id: Number(id), publishedVersion: 1 })
     }
 
     const kind = KIND_DA_ROTA[recurso]
@@ -244,7 +272,8 @@ const servidor = createServer((pedido, resposta) => {
 
     if (pedido.method === 'GET' && !id) {
       if (comRefs && ['landing', 'automation'].includes(kind)) return responde(resposta, 422, { errors: [{ message: 'include=refs só no detalhe' }] })
-      const todos = lista(companyId, kind)
+      const filtroFunil = url.searchParams.get('pipe')
+      const todos = lista(companyId, kind).filter((r) => !filtroFunil || String(r.pipeId) === filtroFunil)
       const porPagina = Math.min(500, Number(url.searchParams.get('limit') || url.searchParams.get('perPage') || 10))
       const pagina = Number(url.searchParams.get('page') || 1)
       const fatia = todos.slice((pagina - 1) * porPagina, pagina * porPagina)
@@ -269,19 +298,32 @@ const servidor = createServer((pedido, resposta) => {
       // Como o CRM de verdade: recusa ID que não é desta conta.
       for (const ref of extrairRefs(kind, corpo)) {
         if (ref.id === null || ref.id === undefined) continue
+        // Arquivo do storage: só vale o da própria conta (o CRM confere a posse).
+        if (ref.kind === 'file' && !String(ref.id).includes(`/companies/${companyId}/`)) return responde(resposta, 422, { errors: [{ message: `arquivo de outra conta: ${ref.id}` }] })
         if (!existe(companyId, ref.kind, ref.id)) return responde(resposta, 422, { errors: [{ message: `${ref.kind} ${ref.id} não pertence a esta conta (${ref.path})` }] })
+      }
+      if (kind === 'landing' && /antiga\.cubo\.test\/sdk/.test(corpo.html || '')) return responde(resposta, 422, { errors: [{ message: 'o SDK tem que vir do endereço desta conta' }] })
+      // Como o CRM: o bodyparser apara as pontas de todo texto.
+      for (const [campo, valor] of Object.entries(corpo)) if (typeof valor === 'string') corpo[campo] = valor.trim()
+      const nomeUnico = { category: 'name', product: 'name', agent: 'name' }[kind]
+      if (pedido.method === 'POST' && nomeUnico && lista(companyId, kind).some((r) => String(r[nomeUnico]).toLowerCase() === String(corpo[nomeUnico]).toLowerCase())) {
+        return responde(resposta, 422, { errors: [{ message: 'Já existe um item com esse nome' }] })
       }
       if (pedido.method === 'POST') {
         const novo = { ...corpo, id: proximoId++ }
         if (kind === 'form') novo.publicId = `frm_n${novo.id}`
         if (kind === 'agent' && falhas.cortarPrompt && novo.systemPrompt) novo.systemPrompt = novo.systemPrompt.slice(0, 40000)
+        if (kind === 'automation') novo.status = 'draft'
+        if (kind === 'stage') novo.orderNr = lista(companyId, 'stage').filter((e) => e.pipeId === novo.pipeId).length + 1
         lista(companyId, kind).push(novo)
-        return responde(resposta, 201, { data: novo })
+        // Como o CRM: POST novo responde o objeto direto; tag, formulário, landing e template seguem com `{ data }`.
+        if (['tag', 'form', 'landing', 'template'].includes(kind)) return responde(resposta, kind === 'tag' ? 200 : 201, { data: novo })
+        return responde(resposta, 201, novo)
       }
       const registro = lista(companyId, kind).find((r) => String(r.id) === id)
       if (!registro) return responde(resposta, 404, { errors: [{ message: 'not found' }] })
       Object.assign(registro, corpo)
-      return responde(resposta, 200, { data: registro })
+      return responde(resposta, 200, ['form', 'landing', 'template'].includes(kind) ? { data: registro } : registro)
     }
     responde(resposta, 405, { errors: [{ message: 'Method not allowed' }] })
   })
@@ -394,7 +436,7 @@ await caso('conta: com tudo certo, libera e grava as duas contas no ledger', asy
 // Plano, perguntas e aplicação.
 
 await caso('plano: puxa as dependências, casa usuário por e-mail e MCP por nome, e pergunta o resto', async () => {
-  const r = await roda('plano.mjs', ['--areas=automacoes,agentes,canais,filtros,landing-pages'])
+  const r = await roda('plano.mjs', ['--areas=automacoes,agentes,canais,filtros,landing-pages,produtos'])
   confere(r.codigo === 0, r.saida)
   const l = ledger()
   const kinds = new Set(Object.values(l.itens).map((i) => i.kind))
@@ -403,9 +445,10 @@ await caso('plano: puxa as dependências, casa usuário por e-mail e MCP por nom
   confere(l.decisoes.usuarios['10'] === 20, 'Ana tinha que casar pelo e-mail, sem diferenciar maiúscula')
   confere(l.decisoes.mcp['1201'] === 2201, 'o MCP Stripe tinha que casar pelo nome')
   const ids = l.perguntas.map((p) => p.id).sort()
-  confere(JSON.stringify(ids) === JSON.stringify(['dominio:901', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
+  confere(JSON.stringify(ids) === JSON.stringify(['dominio:901', 'existente:category:1501', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
   confere(/PLANO \(nada foi alterado ainda\)/.test(r.saida) && /Automações: 2 itens/.test(r.saida), r.saida)
-  confere(Object.values(banco[2]).flat().length === 2, 'o plano não pode escrever na conta nova')
+  confere(Object.values(banco[2]).flat().length === 3, 'o plano não pode escrever na conta nova')
+  confere(l.avisos.some((t) => /Boas-vindas.*alterações não publicadas/.test(t)), 'faltou o aviso do rascunho não publicado')
   confere(l.avisos.some((t) => /7777 \(em update_deal_field_7777\)/.test(t)) && !l.avisos.some((t) => /1201/.test(t)), `avisos: ${l.avisos.join(' | ')}`)
   confere(l.pendencias.some((p) => /Recontato.*cabeçalhos do nó HTTP “Avisa o ERP” \(Authorization\)/.test(p.texto)), 'faltou a pendência dos cabeçalhos do nó HTTP')
 })
@@ -420,7 +463,7 @@ await caso('decidir: grava as respostas e recusa usuário que não existe na con
   confere(r.codigo === 2 && /não existe na conta nova/.test(r.saida), r.saida)
   r = await roda('decidir.mjs', ['listar'])
   confere(/21=Dona/.test(r.saida), r.saida)
-  for (const args of [['usuario', '11', 'dono'], ['existente', 'tag:101', 'usar'], ['dominio', '901', 'outro:lp.clinicanova.com']]) {
+  for (const args of [['usuario', '11', 'dono'], ['existente', 'tag:101', 'usar'], ['existente', 'category:1501', 'criar'], ['dominio', '901', 'outro:lp.clinicanova.com']]) {
     r = await roda('decidir.mjs', args)
     confere(r.codigo === 0, r.saida)
   }
@@ -429,7 +472,9 @@ await caso('decidir: grava as respostas e recusa usuário que não existe na con
 
 await caso('aplicar: cai no meio (erro 500 num agente) e quem depende dele espera', async () => {
   falhas.agentUmaVez = true
+  falhas.tetoUmaVez = true
   const r = await roda('aplicar.mjs')
+  confere(!falhas.tetoUmaVez && !/429/.test(r.saida), `o 429 tinha que ser repetido sozinho\n${r.saida}`)
   confere(r.codigo === 4, `código ${r.codigo}\n${r.saida}`)
   const l = ledger()
   const comErro = Object.values(l.itens).filter((i) => i.status === 'erro').map((i) => i.kind)
@@ -465,10 +510,20 @@ await caso('aplicar: rodar de novo continua de onde parou, sem duplicar, e faz a
   confere(sdr.handoffTargets[0].targetAgentId === l.mapa.agent['602'], 'handoff não ligado')
 
   const landing = doDestino('landing')[0]
-  confere(landing.status === 'deactivated' && landing.html.includes(`frm_n${l.mapa.form['801']}`) && landing.html.includes('companies/2/importados/'), landing.html)
+  confere(landing.status === 'deactivated' && landing.html.includes(`frm_n${l.mapa.form['801']}`) && landing.html.includes('companies/2/landing/'), landing.html)
   const filtro = doDestino('filter')[0]
   confere(filtro.userId === 21 && filtro.link === `pipe=${pipe}&stage=${l.mapa.stage['401']}&`, JSON.stringify(filtro))
   confere(doDestino('domain')[0].domain === 'lp.clinicanova.com', 'domínio escolhido não usado')
+  confere(doDestino('category').some((c) => c.name === 'Consultas (migrado)'), 'criar outro com nome único tinha que ganhar o sufixo')
+  const produto = doDestino('product')[0]
+  confere(produto.urlImage === null && l.pendencias.some((p) => /Avaliação.*não pôde ser copiado/.test(p.texto)), `produto: ${JSON.stringify(produto)}`)
+  confere(landing.html.includes(`${BASE}/sdk/form.js`) && !landing.html.includes('antiga.cubo.test'), 'o SDK da página tinha que vir do endereço da conta nova')
+  const etapas = doDestino('stage').filter((e) => e.pipeId === pipe).sort((a, b) => a.orderNr - b.orderNr).map((e) => e.name)
+  confere(JSON.stringify(etapas) === JSON.stringify(['Ganho', 'Novo']), `ordem das etapas: ${etapas}`)
+  confere(JSON.stringify(chamadas.publicadas) === JSON.stringify([automacao.id]) && l.itens['automation:701'].publicada, `publicadas: ${chamadas.publicadas}`)
+  const copias = chamadas.importUrl
+  await roda('aplicar.mjs')
+  confere(chamadas.importUrl === copias && chamadas.publicadas.length === 1 && chamadas.ordens.length === 1, 'rodar de novo copiou arquivo, publicou ou reordenou de novo')
   const campo = doDestino('customfield').find((c) => c.name === 'Origem')
   confere(JSON.stringify(campo.options) === JSON.stringify(['site', 'indicação']), `options: ${JSON.stringify(campo.options)}`)
   const funil = doDestino('pipe')[0]

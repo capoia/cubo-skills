@@ -10,9 +10,8 @@ prompt de um agente guarda o número do campo personalizado, e na conta nova ess
 A skill troca todos e, no fim, relê tudo na conta nova para provar que nenhum número da conta antiga
 sobrou.
 
-> **Estado:** em construção (0.1). A leitura da conta antiga já existe no Cubo; a criação na conta
-> nova ainda está sendo feita. Até lá, a conferência de acesso barra a conta nova por falta de
-> permissão de criação.
+> **Estado:** em teste (0.2). As rotas de leitura e de criação já estão no Cubo; falta rodar a skill
+> inteira contra contas de verdade.
 
 ## Antes de usar
 
@@ -20,7 +19,7 @@ sobrou.
 | --- | --- |
 | **Node.js 20.9 ou mais novo** | Windows: `winget install OpenJS.NodeJS.LTS` no PowerShell (ou o instalador LTS de https://nodejs.org). macOS: instalador LTS de https://nodejs.org. Depois, **feche e abra o Claude Code**. |
 | **Chave de API da conta antiga** | no Cubo da conta antiga, com um administrador: **Configurações → Chaves de API**. Basta leitura. |
-| **Chave de API da conta nova** | no Cubo da conta nova, com um administrador: leitura, criação e edição. |
+| **Chave de API da conta nova** | no Cubo da conta nova, com um administrador: leitura, criação e edição, e "Arquivos: criação" (para copiar as imagens). |
 
 Não há mais nada para instalar.
 
@@ -52,8 +51,8 @@ Ela vai:
    porque outro item usa, o que já existe na conta nova;
 4. perguntar o que só você pode decidir: quem fica no lugar de um usuário que não existe na conta
    nova, o que fazer com o que já existe, o domínio;
-5. criar na conta nova, avisando cada passo. **A conta antiga nunca é alterada.** Automações e
-   landing pages nascem desligadas;
+5. criar na conta nova, avisando cada passo. **A conta antiga nunca é alterada.** Automações,
+   landing pages, canais, integrações e intents nascem desligados;
 6. conferir tudo na conta nova;
 7. abrir um relatório com o que foi feito e a lista do que você precisa fazer à mão.
 
