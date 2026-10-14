@@ -1,25 +1,15 @@
 {
-  "name": "cubo",
+  "name": "cubo-skills",
   "owner": {
     "name": "Cubo Suite"
   },
   "description": "Skills do Cubo Suite para o Claude Code.",
   "plugins": [
     {
-      "name": "criar-landing-html",
-      "source": "./plugins/criar-landing-html",
-      "version": "3.0.1",
-      "description": "Cria, publica e edita landing pages em HTML no Cubo, com a identidade do cliente, formulário, SEO e nota do PageSpeed.",
-      "author": {
-        "name": "Cubo Suite"
-      },
-      "license": "UNLICENSED"
-    },
-    {
-      "name": "migrar-conta",
-      "source": "./plugins/migrar-conta",
-      "version": "0.3.0",
-      "description": "Copia a configuração de uma conta do Cubo para outra, trocando todos os IDs internos, com conferência e relatório.",
+      "name": "cubo",
+      "source": "./plugins/cubo",
+      "version": "4.0.0",
+      "description": "Landing page em HTML no Cubo (/cubo:criar-landing-html) e cópia da configuração de uma conta para outra (/cubo:migrar-conta).",
       "author": {
         "name": "Cubo Suite"
       },

@@ -6,24 +6,28 @@ confundir com os `plugins/*/skills/*/SKILL.md`, que são a instrução para a sk
 ## O que é este repositório
 
 O **marketplace de plugins do Claude Code do Cubo** (Cubo Suite / Cubo CRM): `capoia/cubo-skills`,
-que até a 2.4.2 se chamava `capoia/cubo-lp-skill` e só tinha a skill de landing page. Cada skill é
-um **plugin separado** em `plugins/<nome>/`, listado no `.claude-plugin/marketplace.json` — é o
-que deixa a pessoa escolher o que instalar no `/plugin` (várias skills num plugin só é tudo ou
-nada). Por isso não há skill "instaladora": a tela do `/plugin` já pergunta.
+que até a 2.4.2 se chamava `capoia/cubo-lp-skill` e só tinha a skill de landing page. O marketplace
+se chama `cubo-skills` e tem **um plugin só, o `cubo`**, em `plugins/cubo/`, com uma pasta por skill.
 
-| Plugin | Skill |
+| Comando | Skill |
 | --- | --- |
-| `criar-landing-html` | criar, publicar e editar landing page em HTML no Cubo, pela API, com entrevista, SEO e PageSpeed |
-| `migrar-conta` | copiar a configuração de uma conta do Cubo para outra, trocando os IDs pelos `refs` da API. Em construção: **leia `docs/migrar-conta/LEDGER.md` antes de mexer** |
+| `/cubo:criar-landing-html` | criar, publicar e editar landing page em HTML no Cubo, pela API, com entrevista, SEO e PageSpeed |
+| `/cubo:migrar-conta` | copiar a configuração de uma conta do Cubo para outra, trocando os IDs pelos `refs` da API. **Leia `docs/migrar-conta/LEDGER.md` antes de mexer** |
 
 Quem instala roda:
 
 ```
 /plugin marketplace add capoia/cubo-skills
-/plugin install criar-landing-html@cubo
+/plugin install cubo@cubo-skills
 ```
 
-O nome do marketplace é `cubo` (e não o do repositório): é o que vem depois do `@`.
+**Por que um plugin só** (decisão de 2026-10-14, na 4.0): o Claude Code chama a skill de plugin
+sempre como `/<plugin>:<skill>`, e nenhum campo tira esse prefixo. Com um plugin por skill, o
+comando virava `/migrar-conta:migrar-conta`; com o plugin `cubo`, vira `/cubo:migrar-conta` — o
+mesmo padrão de `stripe`, `superpowers` e dos plugins `design`/`engineering` da Anthropic. O nome do
+marketplace só aparece na instalação (depois do `@`), por isso ele é `cubo-skills` e não `cubo`:
+`cubo@cubo` ficava estranho. O preço: quem instala leva todas as skills (antes dava para escolher).
+Até a 3.0.1 eram os plugins `criar-landing-html` e `migrar-conta` no marketplace `cubo`.
 
 O repositório é **público** desde 2026-09-23 — é o que permite instalar sem dar acesso ao GitHub. A
 skill não vai para tenant: quem precisar, copia ou forka. Não há nada de interno aqui dentro (só
@@ -33,28 +37,29 @@ nenhum host interno.
 ## Estrutura
 
 ```
-.claude-plugin/marketplace.json   o catálogo; cada entrada aponta para "./plugins/<nome>"
-plugins/criar-landing-html/
+.claude-plugin/marketplace.json   o catálogo: o plugin cubo, apontando para "./plugins/cubo"
+plugins/cubo/
   .claude-plugin/plugin.json      nome, versão, descrição — o que aparece na instalação
-  README.md                       requisitos, instalação e uso, para quem instala
   skills/criar-landing-html/
+    README.md          requisitos, instalação e uso, para quem instala
     SKILL.md           o FLUXO, curto de propósito
     references/*.md    o detalhe, lido sob demanda
     scripts/*.mjs      Node: requisitos, cliente da API, raio-x da marca, anúncios, imagem, vídeo, ícone, teste final,
                        prévia, backup e medição (package.json com sharp, playwright e ffmpeg-static)
-plugins/migrar-conta/            mesma forma; scripts sem dependência nenhuma
+  skills/migrar-conta/            mesma forma; scripts sem dependência nenhuma
 docs/migrar-conta/               LEDGER do desenvolvimento e o briefing da API para o cubo-crm
 testes/fumaca.mjs    teste dos scripts da landing contra um Cubo de mentira
 testes/migrar-conta.mjs          o mesmo para a migração (Cubo de mentira com duas contas)
 .github/workflows/   o CI que roda as duas fumaças em Windows, macOS e Linux
 ```
 
-**Cada plugin é autocontido.** O Claude Code copia cada plugin isolado para o cache, então nada de
-pasta `shared/` nem de caminho que saia de `plugins/<nome>/`. Se duas skills precisarem do mesmo
-cliente da API, cada uma tem a sua cópia.
+**Cada skill é autocontida.** O Claude Code copia o plugin isolado para o cache, então nada de
+caminho que saia de `plugins/cubo/`. E cada skill fica dentro da própria pasta: se duas precisarem do
+mesmo cliente da API, cada uma tem a sua cópia (o `SKILL.md` só conhece o próprio
+`${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts`).
 
-Skill nova: `plugins/<nome>/` com o próprio `plugin.json` e `README.md`, entrada no
-`marketplace.json`, linha nas tabelas daqui e do `README.md` da raiz, e `caso` na fumaça. Skill que
+Skill nova: `plugins/cubo/skills/<nome>/` com `SKILL.md`, `README.md`, referências e scripts; linha
+nas tabelas daqui e do `README.md` da raiz; versão do plugin `cubo` subida; e `caso` na fumaça. Skill que
 **escreve** na conta do cliente leva `disable-model-invocation: true` no frontmatter: só roda
 quando a pessoa chama pelo `/comando`.
 
@@ -71,7 +76,7 @@ Claude Code, **sem nenhum MCP**. Decisão de 2026-09-23. Daí as regras dos scri
 - a skill "olha" as páginas por **captura** (Playwright): é o único olho que existe sem MCP.
 
 **O `SKILL.md` fica curto e os `references/` carregam sob demanda.** Não é preferência de estilo: o
-`SKILL.md` entra em **toda** sessão de quem tem o plugin instalado (~163 tokens hoje), enquanto os
+`SKILL.md` (a descrição de cada skill) entra em **toda** sessão de quem tem o plugin instalado, enquanto os
 arquivos de referência só entram quando a skill precisa deles (~2,8k por invocação). Engordar o
 `SKILL.md` cobra de todo mundo, o tempo inteiro. Detalhe novo vai para `references/`, e o `SKILL.md`
 ganha no máximo um ponteiro.
@@ -79,7 +84,7 @@ ganha no máximo um ponteiro.
 Confira o custo depois de mexer:
 
 ```bash
-claude plugin details criar-landing-html
+claude plugin details cubo
 ```
 
 ## Regras de escrita
@@ -126,19 +131,18 @@ prometer `status` e `css`, que a API recusa de propósito.
 
    ```bash
    claude plugin validate .
-   claude plugin validate plugins/criar-landing-html
-   claude plugin validate plugins/migrar-conta
+   claude plugin validate plugins/cubo
    ```
 
 2. **Instale a partir da pasta local**, sem passar pelo GitHub:
 
    ```
    /plugin marketplace add /Users/wellingtoncapoia/Documents/Repositories/cubo-suite/cubo-skills
-   /plugin install criar-landing-html@cubo
+   /plugin install cubo@cubo-skills
    ```
 
    Precisa de sessão nova para carregar. Para voltar à versão do GitHub, remova o marketplace local
-   (`/plugin marketplace remove cubo`) e adicione `capoia/cubo-skills` de novo.
+   (`/plugin marketplace remove cubo-skills`) e adicione `capoia/cubo-skills` de novo.
 
 3. **Rode a fumaça**, que sobe um Cubo de mentira e exercita todos os scripts:
 
@@ -154,8 +158,8 @@ prometer `status` e `css`, que a API recusa de propósito.
    Contra um CRM de verdade, um slot de worktree do `cubo-crm` (`pnpm dev:docker`) serve bem:
 
    ```bash
-   node plugins/criar-landing-html/skills/criar-landing-html/scripts/cubo.mjs configurar --base=http://127.0.0.1:3336 --chave=sk_...
-   node plugins/criar-landing-html/skills/criar-landing-html/scripts/cubo.mjs check
+   node plugins/cubo/skills/criar-landing-html/scripts/cubo.mjs configurar --base=http://127.0.0.1:3336 --chave=sk_...
+   node plugins/cubo/skills/criar-landing-html/scripts/cubo.mjs check
    ```
 
 4. **Rode a skill inteira uma vez** antes de dar por pronta. Ler o `SKILL.md` não mostra o que
@@ -167,10 +171,11 @@ prometer `status` e `css`, que a API recusa de propósito.
 1. suba `version` nos **dois** manifestos (`plugin.json` e a entrada do `marketplace.json`) — eles
    precisam concordar;
 2. commite e empurre a `main`;
-3. opcionalmente, marque a versão: `claude plugin tag plugins/<plugin>` cria `<plugin>--v<versão>` conferindo
+3. opcionalmente, marque a versão: `claude plugin tag plugins/cubo` cria `cubo--v<versão>` conferindo
    que os dois manifestos batem.
 
-Quem já instalou atualiza com `/plugin update <plugin>` (ou `claude plugin update`).
+A versão é uma só para todas as skills: mexeu em qualquer uma, sobe a do `cubo`. Quem já instalou
+atualiza com `claude plugin marketplace update cubo-skills` + `claude plugin update cubo@cubo-skills`.
 
 ## Armadilhas já pagas
 
@@ -187,7 +192,7 @@ Quem já instalou atualiza com `/plugin update <plugin>` (ou `claude plugin upda
   mil caracteres; uma landing passa disso. O `backup.mjs` chama a API no mesmo processo por isso.
 - **Quem instalou não recebe versão nova sozinho** — a cópia desta máquina ficou na 1.0.0 enquanto o
   repositório estava na 1.3.0. Toda versão que muda requisito ou rota diz no README como atualizar
-  (`claude plugin marketplace update cubo` + `claude plugin update <plugin>@cubo` + reiniciar).
+  (`claude plugin marketplace update cubo-skills` + `claude plugin update cubo@cubo-skills` + reiniciar).
 - **A cota pública do PageSpeed acaba todo dia** — sem chave, a primeira chamada de uma tarde já
   voltou 429. Por isso a chave está no `requisitos.mjs`.
 - **Página de construtor não termina de carregar.** O Chrome headless puro com

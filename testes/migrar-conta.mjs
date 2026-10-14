@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'migrar-conta', 'skills', 'migrar-conta', 'scripts')
+const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'cubo', 'skills', 'migrar-conta', 'scripts')
 const { AREAS, renomearSegredos } = await import(pathToFileURL(join(SCRIPTS, 'areas.mjs')).href)
 const { aplicarRefs, partesDoCaminho, semRepetidos, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
 
