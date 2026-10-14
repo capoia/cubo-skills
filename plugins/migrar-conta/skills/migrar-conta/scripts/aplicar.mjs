@@ -160,6 +160,22 @@ async function procurarNoDestino(area, corpo) {
   return (await listaDoDestino(area.kind)).find((registro) => area.nome(registro) === chave)
 }
 
+// Acha um nome que ainda não existe na conta nova ("X (migrado)", "X (migrado 2)"…) e guarda no item,
+// para a retomada procurar pelo nome que nós demos. Só onde o Cubo recusa nome repetido.
+async function nomeLivre(area, corpo, item) {
+  if (!area.nomeUnico || typeof corpo[area.campoNome] !== 'string') return
+  if (item.nomeNoDestino) {
+    corpo[area.campoNome] = item.nomeNoDestino
+    return
+  }
+  const original = corpo[area.campoNome]
+  for (let n = 1; n < 100; n++) {
+    corpo[area.campoNome] = `${original}${area.sufixo(n)}`
+    if (!(await procurarNoDestino(area, corpo))) break
+  }
+  item.nomeNoDestino = corpo[area.campoNome]
+}
+
 async function processar(chave) {
   const item = ledger.itens[chave]
   const area = AREA[item.kind]
@@ -208,9 +224,7 @@ async function processar(chave) {
 
   // "Criar outro igual" onde o Cubo não aceita nome repetido: o novo ganha um sufixo. Antes da busca
   // abaixo, para a retomada achar o que nós criamos, e não o que já existia.
-  if (ledger.decisoes.existentes[chave] === 'criar' && area.nomeUnico && typeof corpo[area.campoNome] === 'string') {
-    corpo[area.campoNome] = `${corpo[area.campoNome]} (migrado)`
-  }
+  if (ledger.decisoes.existentes[chave] === 'criar' || item.nomeNoDestino) await nomeLivre(area, corpo, item)
 
   // Já existe na conta nova? Se caiu no meio de um envio, o que existe é o que nós criamos.
   if (item.status === 'enviando' || ledger.decisoes.existentes[chave] !== 'criar') {
@@ -223,7 +237,8 @@ async function processar(chave) {
       return
     }
     if (par) {
-      const escolha = ledger.decisoes.existentes[chave] || ledger.decisoes.existentesTodos
+      // Domínio não se repete no Cubo: o que a pessoa escolheu e já está na conta nova é o que vale.
+      const escolha = item.kind === 'domain' ? 'usar' : ledger.decisoes.existentes[chave] || ledger.decisoes.existentesTodos
       if (!escolha) {
         const id = `existente:${chave}`
         if (!ledger.perguntas.some((pergunta) => pergunta.id === id)) {
@@ -246,6 +261,8 @@ async function processar(chave) {
         item.status = 'pulado'
         return
       }
+      // "Criar" valendo para todos: este só se descobriu repetido agora.
+      await nomeLivre(area, corpo, item)
     }
   }
 

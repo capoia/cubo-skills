@@ -18,6 +18,7 @@ Documentos irmãos:
 | Estudo do CRM e briefing da API | `docs/migrar-conta/API-NECESSARIA.md` | ✅ 2026-10-13 |
 | Rotas de **leitura** + `refs` no CRM (A0–A6) | `capoia/cubo-crm` #419–#431 | ✅ 2026-10-13, em produção |
 | Rotas de **criação/edição** no CRM (B1–B6) | `capoia/cubo-crm` #433, #438–#442 | ✅ 2026-10-14 |
+| **Segredos** no CRM (B7: `secrets:read`, `?include=secrets`) | `capoia/cubo-crm` #444 | ✅ 2026-10-14, testado no slot |
 | Escrita da skill ajustada ao CRM real | `aplicar.mjs`, `areas.mjs`, `conta.mjs`, `lib.mjs` | ✅ 2026-10-14 |
 | Leitura da skill ajustada ao CRM real | `lib.mjs`, `conta.mjs`, `plano.mjs`, `refs.mjs`, `areas.mjs` | ✅ 2026-10-13 |
 | Esqueleto do plugin, ledger de execução, acesso às duas contas | `plugins/migrar-conta`, `conta.mjs`, `ledger.mjs` | ✅ 2026-10-13 |
@@ -25,7 +26,7 @@ Documentos irmãos:
 | Aplicar (troca de IDs, segunda passada, retomada) | `scripts/aplicar.mjs`, `refs.mjs` | ✅ 2026-10-13 |
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
 | Relatório HTML | `scripts/relatorio.mjs` | ✅ 2026-10-13 |
-| Fumaça no CI (17 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
+| Fumaça no CI (22 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
 | Ambiente local com contas semeadas (slot do `cubo-crm`) | slot 4, `../cubo-crm-wt-migrar-conta-teste` (porta 3337, banco `crm_wt4`) | ✅ 2026-10-14 — ver "Teste contra o CRM real" |
 | Evals (conta vazia, nome repetido, referência inexistente) | `evals/evals.json` | ⏳ depois do ambiente |
 
@@ -151,15 +152,48 @@ relatório nem no ledger.
   Aqui um `POST /api/domains` do teste chegou lá (recusado por ser `.local`);
 - `PUT /api/filters`: aceitou `users=25%2C25` (repetido) no `link`.
 
-**Ainda não testado de verdade:** segredos (o CRM ainda não entrega), canais (precisam de WhatsApp
+### 2ª rodada: segredos (B7) e migrar de novo para a mesma conta
+
+Slot atualizado para a `main` do CRM com o B7 (#444), migração `api_secret_reads` rodada. A intent
+da origem ganhou `secrets: { CEP_TOKEN }` e `{{CEP_TOKEN}}` na URL. Pasta nova (`teste3/`), mesma
+conta destino, que já tinha a 1ª cópia: `existentes-todos criar`.
+
+**Resultado:** 61 criados, 1 reaproveitado (o domínio escolhido), 5 canais aguardando; conferência
+limpa. Por fora, com `include=secrets` dos dois lados: chave do Cal.com, cabeçalho do webhook,
+segredo e cabeçalho da intent (com o `{{CEP_TOKEN}}`), cabeçalho do nó HTTP e client secret do OAuth
+**iguais na conta nova**; integrações nascem `deactivated`, OAuth `disconnected`. Pendência certa:
+"a chave veio junto" em vez de "preencher". Segredo só nos `migracao/origem/*.json` (a pasta que o
+relatório manda apagar); nada no relatório nem no `LEDGER.md`.
+
+**Defeitos achados e corrigidos:**
+
+- a chave de origem do teste tinha `secrets:read` mas **nenhum usuário** → 403 em todo segredo. O
+  `whoami` mostra o dono nesse caso, então a conferência agora **lê um item de verdade** com
+  `include=secrets` e explica o campo "Usuário (opcional)". O passo a passo da chave pede o usuário;
+- "criar outro" para todos não dava sufixo ao que só se descobre repetido no `aplicar` (pastas,
+  filtro): 422 "já existe". Agora `nomeLivre` acha "X (migrado)", "X (migrado 2)"… e guarda o nome no
+  item para a retomada;
+- intent também tem nome único (identificador em minúsculas): sufixo `_migrado`;
+- domínio escolhido que já existe na conta nova era recriado (422): agora é sempre reaproveitado;
+- `conferir-formulario` respondia a última pergunta mas deixava a etapa "Decisões" em andamento;
+- segredo de intent com nome fora de `MAIUSCULAS_COM_SUBLINHADO` (o B7 avisa que sai assim e o
+  POST recusa): vira o nome no formato e o `{{nome}}` da URL e dos cabeçalhos acompanha, com
+  pendência para testar. Só na fumaça (o CRM não deixa gravar um assim hoje).
+
+**Para o CRM:**
+
+- `whoami` não diz se a chave tem usuário: a sem usuário aparece como do dono, e só a leitura de
+  segredo revela. Um `apiKey.userId` (null quando cai no dono) bastaria;
+- a maioria das áreas não tem `DELETE` pela chave (integração, intent…): não dá para desfazer uma
+  migração errada pela API. Não é pedido, é registro.
+
+**Ainda não testado de verdade:** canais (precisam de WhatsApp
 conectado), cópia de arquivo (`import-url` contra o MinIO do slot: a origem não tinha arquivo no
 storage), cota cheia (413) e o 429.
 
 ## Pendências e ideias
 
 - Testar com Haiku, Sonnet e Opus (o modelo segue o fluxo? pergunta com escolha clicável?).
-- **Aguardando o CRM:** `secrets:read` e `?include=secrets` ([SEGREDOS-CRM.md](SEGREDOS-CRM.md)). Até
-  lá, a conferência barra a origem quando a escolha tem área com segredo — de propósito.
 - Cota de formulários, landings e domínios na conta nova: o CRM reserva por unidade; uma conta nova
   com cota menor que o número de páginas da antiga falha no meio. Conferir no plano (se o `whoami`
   passar a dar a cota).
@@ -213,3 +247,8 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   Relatório ganhou "Para fechar" (apagar as chaves da migração e a pasta). Fumaça: 19 casos.
 - **2026-10-14** — Teste contra o CRM real (slot 4): 59 criados, conferência limpa. Quatro defeitos
   corrigidos (repetidos, `rottenDays: 0`, aviso do prompt, textos); três achados para o CRM. Fumaça: 20 casos.
+- **2026-10-14** — O CRM entregou os segredos (B7, #444). Skill 0.3.0. Testado no slot: os cinco tipos chegam
+  iguais na conta nova. A conferência lê um item com `include=secrets` (chave sem usuário passa no
+  `whoami` e falha no segredo). Segunda migração para a mesma conta achou e corrigiu: sufixo de nome
+  único no que só se descobre repetido, intent com nome único, domínio já existente reaproveitado,
+  etapa de decisões presa. Fumaça: 22 casos.

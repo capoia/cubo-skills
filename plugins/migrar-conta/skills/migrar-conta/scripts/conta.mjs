@@ -58,6 +58,31 @@ function temEscopo(chave, recurso, acao) {
   return (escopos[recurso] || []).includes(acao)
 }
 
+// Lê com `include=secrets` o primeiro item que tiver segredo. Devolve o texto do problema, ou null.
+async function sondarSegredos(conta, kinds, config) {
+  for (const kind of kinds.filter((k) => AREA[k].segredos)) {
+    let lista
+    try {
+      lista = await api(conta, 'GET', `${AREA[kind].rota}?perPage=1`, undefined, config)
+    } catch {
+      continue
+    }
+    const primeiro = (lista?.data ?? lista ?? [])[0]
+    if (!primeiro?.id) continue
+    try {
+      await api(conta, 'GET', `${AREA[kind].rota}/${primeiro.id}?include=secrets`, undefined, config)
+      return null
+    } catch (erro) {
+      if (erro.codigo === 403 && /administrador/i.test(erro.message)) {
+        return 'a chave não lê os segredos: ela precisa ter um usuário DEFINIDO, ativo e administrador (chave sem usuário não serve, mesmo com a permissão marcada). No Cubo: Configurações → Chaves de API → editar a chave → no campo “Usuário (opcional)”, escolher um administrador → salvar.'
+      }
+      if (erro.codigo === 403) return 'a chave não tem a permissão "Segredos". No Cubo: Configurações → Chaves de API → editar a chave → marcar "Segredos" (ela não vem com o acesso total).'
+      return `não consegui ler os segredos: ${erro.message}`
+    }
+  }
+  return null // nada com segredo na conta antiga: não há o que provar
+}
+
 async function conferirConta(conta, kinds, linhas) {
   const config = acesso(conta)
   const ok = (texto) => linhas.push(`  ✔ ${texto}`)
@@ -112,6 +137,16 @@ async function conferirConta(conta, kinds, linhas) {
     const segredo = faltam.includes('secrets:read') ? ' A permissão "Segredos" não vem com o acesso total: tem que ser marcada à parte.' : ''
     ruim(`faltam permissões na chave: ${faltam.join(', ')}. No Cubo: Configurações → Chaves de API → editar a chave → marcar essas permissões.${segredo}`)
   } else ok(`permissões de ${conta === 'origem' ? 'leitura' : 'leitura, criação e edição'} conferidas`)
+
+  // Segredo só sai para chave com o usuário DEFINIDO, ativo e administrador — a chave sem usuário não
+  // cai no dono, e o whoami não mostra a diferença. A prova é ler um item de verdade.
+  if (tudoCerto && conta === 'origem' && precisa.has('secrets')) {
+    const problema = await sondarSegredos(conta, kinds, config)
+    if (problema) {
+      tudoCerto = false
+      ruim(problema)
+    } else ok('a chave lê os segredos (chaves de integrações, cabeçalhos e senhas)')
+  }
 
   // Módulo desligado na conta nova: o Cubo recusa a criação, e descobrir no meio deixa metade feita.
   if (conta === 'destino' && eu.modules) {
@@ -208,6 +243,11 @@ async function conferirFormulario() {
   ledger.perguntas = ledger.perguntas.filter((pergunta) => pergunta.tipo !== 'chave-formulario')
   ledger.chaveFormulario = true
   registrar(ledger, 'Chave do formulário das landing pages conferida')
+  // Pode ter sido a última pergunta: a etapa fecha aqui, como no decidir.
+  if (ledger.etapas.decisoes?.status === 'andamento') {
+    if (ledger.perguntas.length) etapa(ledger, 'decisoes', 'andamento', `${ledger.perguntas.length} perguntas`)
+    else etapa(ledger, 'decisoes', 'feito', 'tudo decidido')
+  }
   salvar(ledger)
   console.log('\nResultado: TUDO CERTO. Os formulários das páginas vão usar essa chave.')
 }

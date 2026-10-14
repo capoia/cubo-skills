@@ -13,6 +13,28 @@ const CAMPOS_DA_PAGINA = ['html', 'head', 'codeHead', 'codeBody']
 // A integração trouxe alguma chave? (só com `include=secrets`)
 const temSegredo = (r) => Boolean(r.token || r.apiKey || r.config?.webhook?.headers || r.config?.verdata?.password || r.config?.facebookCapi?.accessToken)
 
+// Segredo de intent: o Cubo só aceita nome em MAIÚSCULAS_COM_SUBLINHADO (e só troca `{{NOME}}` nesse
+// formato). Segredo gravado antes da regra sai como está e o POST recusa: vira o nome no formato, e o
+// `{{nome}}` da URL e dos cabeçalhos acompanha. Devolve { antigo: novo } só do que muda.
+const NOME_DE_SEGREDO = /^[A-Z][A-Z0-9_]*$/
+export function renomearSegredos(segredos) {
+  const nomes = Object.keys(segredos || {})
+  const usados = new Set(nomes.filter((n) => NOME_DE_SEGREDO.test(n)))
+  const trocas = {}
+  for (const antigo of nomes) {
+    if (NOME_DE_SEGREDO.test(antigo)) continue
+    let base = antigo.toUpperCase().replace(/[^A-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '')
+    if (!/^[A-Z]/.test(base)) base = `S_${base}`
+    let novo = base
+    for (let n = 2; usados.has(novo); n++) novo = `${base}_${n}`
+    usados.add(novo)
+    trocas[antigo] = novo
+  }
+  return trocas
+}
+const trocarPlaceholders = (texto, trocas) =>
+  typeof texto === 'string' ? texto.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (todo, nome) => (trocas[nome] ? `{{${trocas[nome]}}}` : todo)) : texto
+
 // Nome dos módulos do Cubo, para a conferência de acesso falar em língua de gente.
 export const NOME_MODULO = { 'ai-agents': 'Agentes de IA', automations: 'Automações', channels: 'Canais', integrations: 'Integrações', instagram: 'Instagram' }
 
@@ -49,9 +71,11 @@ export const AREAS = [
     // e funciona igual na conta nova; o que nasce de login (WhatsApp, Instagram, Google…) se reconecta.
     remover: ['status'], segredos: true, modulo: 'integrations',
     pendencia: (r) => {
-      if (temSegredo(r)) return `Integração “${r.name}” (${r.type}): a chave veio junto. Conferir e ligar (Configurações → Integrações).`
+      // A senha do Verdata de cada usuário nunca sai, nem com `include=secrets`.
+      const verdata = r.type === 'verdata' && r.users?.length ? ` Digitar de novo a senha do Verdata de cada usuário (${r.users.length}).` : ''
+      if (temSegredo(r)) return `Integração “${r.name}” (${r.type}): a chave veio junto. Conferir e ligar (Configurações → Integrações).${verdata}`
       const cabecalhos = r.config?.webhook?.headerNames?.length && !r.config.webhook.headers ? ` Preencher também os cabeçalhos do webhook (${r.config.webhook.headerNames.join(', ')}).` : ''
-      return `Integração “${r.name}” (${r.type}): reconectar e ligar na conta nova (Configurações → Integrações).${cabecalhos}`
+      return `Integração “${r.name}” (${r.type}): reconectar e ligar na conta nova (Configurações → Integrações).${cabecalhos}${verdata}`
     },
   },
   // MCP não se cria por API (nasce de login no navegador): só casa pelo nome com o que já existe.
@@ -74,9 +98,24 @@ export const AREAS = [
   {
     kind: 'custom_intent', rotulo: 'Intents de agente', rota: '/api/intents', escopo: 'intents',
     remover: ['promptChip', 'headerNames', 'hasSecrets', 'usesOauthCredential'], nascer: { enabled: false }, segredos: true,
+    // O nome da intent é um identificador (minúsculas e sublinhado), único na conta.
+    nomeUnico: true, sufixo: (n) => (n === 1 ? '_migrado' : `_migrado_${n}`),
+    preparar: (corpo) => {
+      const trocas = renomearSegredos(corpo.secrets)
+      if (!Object.keys(trocas).length) return corpo
+      const secrets = Object.fromEntries(Object.entries(corpo.secrets).map(([nome, valor]) => [trocas[nome] || nome, valor]))
+      const headers = corpo.headers && Object.fromEntries(Object.entries(corpo.headers).map(([nome, valor]) => [nome, trocarPlaceholders(valor, trocas)]))
+      return { ...corpo, secrets, ...(headers ? { headers } : {}), url: trocarPlaceholders(corpo.url, trocas) }
+    },
     pendencia: (r) => {
       const faltam = (r.hasSecrets && !r.secrets) || (r.headerNames?.length && !r.headers)
-      return faltam ? `Intent “${r.name}”: preencher os segredos e cabeçalhos${r.headerNames?.length ? ` (${r.headerNames.join(', ')})` : ''} e ligar (Agentes → Intents).` : `Intent “${r.name}”: revisar e ligar (Agentes → Intents).`
+      const trocas = Object.entries(renomearSegredos(r.secrets))
+      const renomeados = trocas.length
+        ? ` O Cubo só aceita nome de segredo em MAIÚSCULAS, e na conta antiga ${trocas.length > 1 ? 'estes não eram usados' : 'este não era usado'} por isso: ${trocas.map(([de, para]) => `“${de}” virou ${para}`).join(', ')}. Testar a intent antes de ligar.`
+        : ''
+      return faltam
+        ? `Intent “${r.name}”: preencher os segredos e cabeçalhos${r.headerNames?.length ? ` (${r.headerNames.join(', ')})` : ''} e ligar (Agentes → Intents).${renomeados}`
+        : `Intent “${r.name}”: revisar e ligar (Agentes → Intents).${renomeados}`
     },
   },
   { kind: 'agent_folder', rotulo: 'Pastas de agentes', rota: '/api/agent-folders', escopo: 'agents', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true, modulo: 'ai-agents' },
@@ -132,6 +171,7 @@ for (const area of AREAS) {
   area.campoNome ||= 'name'
   area.acoes ||= ['read', 'create', 'update']
   area.proposito ||= 'automation' // a pasta que aceita mais tipos de arquivo
+  area.sufixo ||= (n) => (n === 1 ? ' (migrado)' : ` (migrado ${n})`) // "criar outro" onde o nome é único
 }
 
 export const AREA = Object.fromEntries(AREAS.map((area, indice) => [area.kind, { ...area, ordem: indice }]))

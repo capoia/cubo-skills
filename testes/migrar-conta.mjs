@@ -5,22 +5,22 @@
 // pela jornada inteira: acesso, plano, perguntas, aplicar (com queda no meio), 2ª passada,
 // conferência e relatório. Roda no CI em Windows, macOS e Linux.
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'migrar-conta', 'skills', 'migrar-conta', 'scripts')
-const { AREAS } = await import(pathToFileURL(join(SCRIPTS, 'areas.mjs')).href)
+const { AREAS, renomearSegredos } = await import(pathToFileURL(join(SCRIPTS, 'areas.mjs')).href)
 const { aplicarRefs, partesDoCaminho, semRepetidos, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
 
 const PASTA = mkdtempSync(join(tmpdir(), 'cubo-migracao-'))
 const resultados = []
 
-function roda(script, args = []) {
+function roda(script, args = [], pasta = PASTA) {
   return new Promise((pronto) => {
-    const filho = spawn(process.execPath, [join(SCRIPTS, script), ...args], { cwd: PASTA, env: { ...process.env, CUBO_MIGRACAO_PASTA: join(PASTA, 'migracao'), CUBO_MIGRACAO_NAO_ABRIR: '1' } })
+    const filho = spawn(process.execPath, [join(SCRIPTS, script), ...args], { cwd: pasta, env: { ...process.env, CUBO_MIGRACAO_PASTA: join(pasta, 'migracao'), CUBO_MIGRACAO_NAO_ABRIR: '1' } })
     let saida = ''
     filho.stdout.on('data', (parte) => (saida += parte))
     filho.stderr.on('data', (parte) => (saida += parte))
@@ -112,6 +112,7 @@ function extrairRefs(kind, objeto) {
 let proximoId = 5000
 const CONTAS = {
   sk_origem: { companyId: 1, nome: 'Clínica Antiga', admin: true, escopos: { '*': ['*'], secrets: ['read'] } },
+  sk_origem_sem_usuario: { companyId: 1, nome: 'Clínica Antiga', admin: true, semUsuario: true, escopos: { '*': ['*'], secrets: ['read'] } },
   sk_origem_sem_segredo: { companyId: 1, nome: 'Clínica Antiga', admin: true, escopos: { '*': ['*'] } },
   sk_destino: { companyId: 2, nome: 'Clínica Nova', admin: true, escopos: { '*': ['*'] } },
   sk_sem_modulo: { companyId: 2, nome: 'Clínica Nova', admin: true, escopos: { '*': ['*'] }, modulos: ['automations', 'channels', 'integrations'] },
@@ -223,8 +224,16 @@ const servidor = createServer((pedido, resposta) => {
     const incluir = (url.searchParams.get('include') || '').split(',')
     const comRefs = incluir.includes('refs')
     // Como o CRM: segredo só com a permissão marcada (o acesso total não basta).
-    if (incluir.includes('secrets') && !(conta.escopos.secrets || []).includes('read')) return responde(resposta, 403, { errors: [{ message: 'Missing scope: secrets:read' }] })
+    if (incluir.includes('secrets') && !(conta.escopos.secrets || []).includes('read')) return responde(resposta, 403, { errors: [{ message: 'Missing required scope: secrets:read' }] })
+    // Chave sem usuário definido não cai no dono: o whoami não mostra, mas o segredo é recusado.
+    if (incluir.includes('secrets') && conta.semUsuario) return responde(resposta, 403, { errors: [{ message: 'Só a chave de um administrador lê segredos: a chave precisa ter o usuário definido, ativo e administrador.' }] })
     const [, , recurso, id] = url.pathname.split('/')
+    // Como o CRM: `include` que a rota não atende é 422, e segredo só sai no detalhe.
+    if (url.searchParams.has('include')) {
+      const estranho = incluir.find((valor) => !['refs', 'secrets'].includes(valor))
+      if (estranho !== undefined) return responde(resposta, 422, { errors: [{ message: `include desconhecido: ${estranho}` }] })
+      if (incluir.includes('secrets') && !id) return responde(resposta, 422, { errors: [{ message: 'Segredo sai item a item' }] })
+    }
 
     // Como o CRM: parâmetro desconhecido é 422.
     const desconhecido = [...url.searchParams.keys()].find((p) => !['page', 'perPage', 'limit', 'include', 'name', 'pipe'].includes(p))
@@ -328,7 +337,7 @@ const servidor = createServer((pedido, resposta) => {
       if (kind === 'landing' && /antiga\.cubo\.test\/sdk/.test(corpo.html || '')) return responde(resposta, 422, { errors: [{ message: 'o SDK tem que vir do endereço desta conta' }] })
       // Como o CRM: o bodyparser apara as pontas de todo texto.
       for (const [campo, valor] of Object.entries(corpo)) if (typeof valor === 'string') corpo[campo] = valor.trim()
-      const nomeUnico = { category: 'name', product: 'name', agent: 'name' }[kind]
+      const nomeUnico = { category: 'name', product: 'name', agent: 'name', filter: 'name' }[kind]
       if (pedido.method === 'POST' && nomeUnico && lista(companyId, kind).some((r) => String(r[nomeUnico]).toLowerCase() === String(corpo[nomeUnico]).toLowerCase())) {
         return responde(resposta, 422, { errors: [{ message: 'Já existe um item com esse nome' }] })
       }
@@ -463,7 +472,25 @@ await caso('conta: sem a permissão de segredos na antiga e sem o módulo na nov
   confere(/não tem o módulo “Agentes de IA” ligado/.test(r.saida) && !/módulo “Automações”/.test(r.saida), r.saida)
   r = await roda('conta.mjs', ['conferir', '--areas=tags'])
   confere(r.codigo === 0, `sem área com segredo nem módulo, passa\n${r.saida}`)
+  // Permissão marcada, mas chave sem usuário: só lendo um item de verdade se descobre.
+  escreveAcesso('origem', 'sk_origem_sem_usuario')
+  escreveAcesso('destino', 'sk_destino')
+  r = await roda('conta.mjs', ['conferir', '--areas=automacoes'])
+  confere(r.codigo === 1 && /usuário DEFINIDO/.test(r.saida), r.saida)
   escreveAcesso('origem', 'sk_origem')
+  r = await roda('conta.mjs', ['conferir', '--areas=automacoes'])
+  confere(r.codigo === 0 && /a chave lê os segredos/.test(r.saida), r.saida)
+})
+
+await caso('intent: segredo com nome fora da regra vira MAIÚSCULAS, o {{nome}} acompanha e vira pendência', async () => {
+  confere(JSON.stringify(renomearSegredos({ API_KEY: 'a', 'api-key': 'b', token: 'c', '1x': 'd' })) === '{"api-key":"API_KEY_2","token":"TOKEN","1x":"S_1X"}', JSON.stringify(renomearSegredos({ API_KEY: 'a', 'api-key': 'b', token: 'c', '1x': 'd' })))
+  const intent = AREAS.find((a) => a.kind === 'custom_intent')
+  const r = { name: 'Agenda', url: 'https://x.com/{{token}}?k={{ API_KEY }}', headers: { Authorization: 'Bearer {{token}}' }, secrets: { token: 's1', API_KEY: 's2' } }
+  const pronto = intent.preparar(r)
+  confere(pronto.secrets.TOKEN === 's1' && !('token' in pronto.secrets) && pronto.secrets.API_KEY === 's2', JSON.stringify(pronto))
+  confere(pronto.headers.Authorization === 'Bearer {{TOKEN}}' && pronto.url === 'https://x.com/{{TOKEN}}?k={{ API_KEY }}', JSON.stringify(pronto))
+  confere(/“token” virou TOKEN/.test(intent.pendencia(r)), intent.pendencia(r))
+  confere(intent.preparar({ name: 'ok', secrets: { A: '1' } }).secrets.A === '1', 'nome certo não muda')
 })
 
 await caso('conta: a mesma conta dos dois lados é recusada', async () => {
@@ -519,6 +546,8 @@ await caso('formulário do construtor: pede chave separada, recusa a larga e ace
   writeFileSync(join(PASTA, 'migracao', 'formulario.env'), 'CUBO_API_KEY=sk_form\n')
   r = await roda('conta.mjs', ['conferir-formulario'])
   confere(r.codigo === 0 && !ledger().perguntas.some((p) => p.id === 'chave-formulario'), r.saida)
+  // A etapa acompanha: senão, depois da última pergunta, o status segue mandando decidir.
+  confere(ledger().etapas.decisoes.detalhe === `${ledger().perguntas.length} perguntas`, JSON.stringify(ledger().etapas.decisoes))
 })
 
 await caso('decidir: grava as respostas e recusa usuário que não existe na conta nova', async () => {
@@ -621,6 +650,26 @@ await caso('relatório e status: HTML com conferência e tarefas, e o próximo p
   confere(!/<script src/.test(html) && !/https?:\/\/(?!cdn\.test)/.test(html.replace(/http:\/\/127\.0\.0\.1:\d+/g, '')), 'o relatório não pode depender de nada de fora')
   const s = await roda('status.mjs')
   confere(/Por área/.test(s.saida) && /Canais: 0\/1/.test(s.saida), s.saida)
+})
+
+await caso('2ª migração para a mesma conta: "criar outro" para todos dá nome livre também ao que só se descobre repetido no aplicar', async () => {
+  const outra = join(PASTA, 'segunda')
+  mkdirSync(join(outra, 'migracao'), { recursive: true })
+  const acessoEm = (conta, chave) => writeFileSync(join(outra, 'migracao', `${conta}.env`), `CUBO_BASE_URL=${BASE}\nCUBO_API_KEY=${chave}\n`)
+  acessoEm('origem', 'sk_origem')
+  acessoEm('destino', 'sk_destino')
+  let r = await roda('conta.mjs', ['conferir', '--areas=filtros,categorias'], outra)
+  confere(r.codigo === 0, r.saida)
+  r = await roda('plano.mjs', ['--areas=filtros,categorias'], outra)
+  confere(r.codigo === 0, r.saida)
+  await roda('decidir.mjs', ['usuario', '11', 'dono'], outra)
+  r = await roda('decidir.mjs', ['existentes-todos', 'criar'], outra)
+  confere(r.codigo === 0, r.saida)
+  r = await roda('aplicar.mjs', [], outra)
+  const filtros = doDestino('filter').map((f) => f.name)
+  confere(filtros.includes('Meus novos') && filtros.includes('Meus novos (migrado)'), `${filtros}\n${r.saida}`)
+  const categorias = doDestino('category').map((c) => c.name)
+  confere(categorias.filter((n) => /^consultas \(migrado( \d)?\)$/i.test(n)).length === 2, `a 2ª cópia ganha “(migrado 2)”: ${categorias}`)
 })
 
 servidor.close()

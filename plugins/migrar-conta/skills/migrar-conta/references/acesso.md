@@ -12,11 +12,13 @@ comum, o Cubo esconde parte da configuração (por exemplo, os funis de que ele 
 > **Na conta antiga:**
 > 1. Entre no Cubo com um usuário administrador.
 > 2. Vá em **Configurações → Chaves de API → Nova chave**.
-> 3. Dê o nome "Migração" e marque permissão de **leitura** em tudo. Marque também
->    **"Segredos"**: é o que traz junto as chaves dos serviços de fora (Cal.com, OpenAI, o sistema
->    chamado pelas automações), para você não precisar digitar tudo de novo. Ela não vem marcada
->    nem com "acesso total". Não precisa de mais nada: eu não vou mudar nada nessa conta.
-> 4. Copie a chave (começa com `sk_`).
+> 3. Dê o nome "Migração" e, no campo **Usuário (opcional)**, escolha **você mesmo** (ou outro
+>    administrador). Aqui ele não é opcional: sem usuário, a chave não traz as senhas e chaves.
+> 4. Marque permissão de **leitura** em tudo. Marque também **"Segredos"**: é o que traz junto as
+>    chaves dos serviços de fora (Cal.com, OpenAI, o sistema chamado pelas automações), para você não
+>    precisar digitar tudo de novo. Ela não vem marcada nem com "acesso total", e só funciona em
+>    chave com usuário administrador. Não precisa de mais nada: eu não vou mudar nada nessa conta.
+> 5. Copie a chave (começa com `sk_`).
 >
 > Agora digite aqui, exatamente assim, e aperte Enter:
 >
@@ -42,6 +44,10 @@ Troque `<scripts>` pelo caminho completo dos scripts antes de mandar.
   (para copiar imagens); e a leitura de usuários nas duas;
 - se a conta nova tem ligados os módulos das áreas escolhidas (Agentes de IA, Automações, Canais,
   Integrações). Módulo se liga com o suporte do Cubo, ou a pessoa tira a área da escolha;
+- quando há "Segredos": lê de verdade um item com segredo da conta antiga. É o único jeito de saber
+  se a chave serve, porque o Cubo só entrega segredo para chave com **usuário definido**, ativo e
+  administrador, e a chave sem usuário aparece no `whoami` como se fosse do dono. A leitura fica
+  registrada na página da chave, no Cubo (é o que o Cubo faz com toda leitura de segredo);
 - se as duas chaves não são da mesma conta.
 
 ## A terceira chave: a do formulário das landing pages

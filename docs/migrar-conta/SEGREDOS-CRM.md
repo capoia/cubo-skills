@@ -1,5 +1,10 @@
 # Briefing para o `cubo-crm`: copiar os segredos na migração
 
+> **Entregue** no B7 (`capoia/cubo-crm` #444, 2026-10-14) e testado no slot 4. Diferenças do pedido:
+> só chave de integração com **usuário definido**, ativo e administrador lê (a sem usuário não cai no
+> dono); `include` desconhecido é 422 em toda rota de configuração; a senha do Verdata por usuário não
+> sai (fica como tarefa manual).
+
 Pedido da skill `migrar-conta`. Contexto: a skill serve para **franqueadoras replicarem uma conta
 modelo**. A maior parte dos segredos é de serviço de fora (Cal.com, OpenAI, o ERP chamado pelo nó
 HTTP, o webhook do cliente), e uma chave do Cal.com funciona igual em qualquer conta do Cubo. Hoje a
