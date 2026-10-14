@@ -118,6 +118,12 @@ const html = `<!doctype html>
     ? `<div class="caixa"><ul class="tarefas">${ledger.pendencias.map((p, i) => `<li><input type="checkbox" id="t${i}"><span><label for="t${i}">${esc(p.texto)}</label></span></li>`).join('')}</ul></div>`
     : '<div class="caixa ok">Nada. Tudo o que foi escolhido funciona sem ação manual.</div>'}
 
+  <h2>Para fechar</h2>
+  <div class="caixa"><ul class="tarefas">
+    <li><input type="checkbox" id="f1"><span><label for="f1">Apagar no Cubo as duas chaves de API “Migração” (a da conta antiga e a da conta nova). ${ledger.chaveFormulario ? 'A chave do formulário das páginas <b>fica</b>: as landing pages usam.' : ''}</label></span></li>
+    <li><input type="checkbox" id="f2"><span><label for="f2">Apagar a pasta <code>migracao/</code> deste computador: ela guarda as chaves e os segredos que vieram da conta antiga.</label></span></li>
+  </ul></div>
+
   <h2>Conferência</h2>
   ${!ledger.conferencia
     ? '<div class="caixa">A conferência ainda não rodou.</div>'

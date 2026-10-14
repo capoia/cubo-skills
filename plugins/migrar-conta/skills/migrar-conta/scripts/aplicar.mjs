@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto'
 import { AREA, AREAS, KINDS_DE_DADO, KIND_ARQUIVO, KIND_CHAVE, KIND_PUBLIC_ID, KIND_USUARIO, corpoParaCriar } from './areas.mjs'
 import { aviso, carregar, chaveItem, etapa, mapear, noMapa, pendencia, proximoPasso, registrar, salvar } from './ledger.mjs'
-import { ErroApi, api, falha, lerJson, pasta, todos } from './lib.mjs'
+import { ErroApi, acesso, api, falha, lerJson, pasta, todos } from './lib.mjs'
 import { aplicarRefs, campoRaiz } from './refs.mjs'
 
 const ledger = carregar()
@@ -99,12 +99,12 @@ function decisorPara(item) {
       if (novo === null) return { remover: true }
       return novo === undefined ? { faltando: true } : { novo }
     }
-    // A chave de API publicada no formulário do construtor: o Cubo só aceita a da conta nova, e a
-    // única que a skill tem é a da migração (com permissão de escrita) — publicar essa numa página
-    // seria entregar a conta. Sai, e a pessoa salva o formulário no construtor.
+    // A chave de API publicada no formulário do construtor: o Cubo só aceita uma da conta nova, e a
+    // da migração (com escrita) não pode ir para uma página. Vai a chave do formulário, que a pessoa
+    // criou só para negócios e o `conta.mjs conferir-formulario` conferiu.
     if (ref.kind === KIND_CHAVE) {
-      pendencia(ledger, `${areaAtual.rotulo} “${item.nome}”: o formulário do construtor usava a chave de API da conta antiga, que foi retirada. Abra a página no construtor, clique no formulário e salve, para ele passar a usar a conta nova.`, { kind: item.kind, origemId: item.origemId })
-      return { remover: true }
+      const chave = ledger.chaveFormulario ? acesso('formulario').chave : ''
+      return chave ? { novo: chave } : { faltando: true }
     }
     if (ref.kind === KIND_PUBLIC_ID) {
       const novo = noMapa(ledger, KIND_PUBLIC_ID, id)
@@ -191,7 +191,8 @@ async function processar(chave) {
   }
   if (trocado.faltando.length) {
     item.status = 'erro'
-    item.erro = `sem par na conta nova para: ${trocado.faltando.map((ref) => `${ref.kind} nº ${ref.id}`).join(', ')}`
+    // A chave de API nunca vai para o ledger nem para a tela.
+    item.erro = `sem par na conta nova para: ${trocado.faltando.map((ref) => (ref.kind === KIND_CHAVE ? 'a chave do formulário (rode o conferir-formulario)' : `${ref.kind} nº ${ref.id}`)).join(', ')}`
     return
   }
   const corpo = corpoParaCriar(area, trocado.registro, { destino: ledger.destino?.base })

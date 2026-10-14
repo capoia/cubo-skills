@@ -95,6 +95,8 @@ function extrairRefs(kind, objeto) {
       for (const p of m[2].matchAll(/(\w+)=(\d+)/g)) if (PARAMETRO_PARA_KIND[p[1]]) refs.push({ path: caminho, kind: PARAMETRO_PARA_KIND[p[1]], id: Number(p[2]), token: m[0] })
     }
     for (const m of valor.matchAll(/\{\{tool:mcp_(\d+)_[a-z_]+\}\}/g)) refs.push({ path: caminho, kind: 'mcp_connection', id: Number(m[1]), token: m[0] })
+    // Props do formulário do construtor, como o `landing_refs` do CRM.
+    for (const m of valor.matchAll(/"(pipe|keycubo)":"([^"]+)"/g)) refs.push({ path: caminho, kind: m[1] === 'pipe' ? 'pipe' : 'apikey', id: m[1] === 'pipe' ? Number(m[2]) : m[2], token: m[0] })
     if (chave !== 'publicId') for (const m of valor.matchAll(/frm_[a-z0-9]+/g)) refs.push({ path: caminho, kind: 'form_public_id', id: m[0], token: m[0] })
     for (const m of valor.matchAll(/https:\/\/cdn\.test\/companies\/\d+\/[^\s"'<>]+/g)) {
       refs.push(m[0] === valor ? { path: caminho, kind: 'file', id: m[0] } : { path: caminho, kind: 'file', id: m[0], token: m[0] })
@@ -109,8 +111,12 @@ function extrairRefs(kind, objeto) {
 
 let proximoId = 5000
 const CONTAS = {
-  sk_origem: { companyId: 1, nome: 'Clínica Antiga', admin: true, escopos: { '*': ['*'] } },
+  sk_origem: { companyId: 1, nome: 'Clínica Antiga', admin: true, escopos: { '*': ['*'], secrets: ['read'] } },
+  sk_origem_sem_segredo: { companyId: 1, nome: 'Clínica Antiga', admin: true, escopos: { '*': ['*'] } },
   sk_destino: { companyId: 2, nome: 'Clínica Nova', admin: true, escopos: { '*': ['*'] } },
+  sk_sem_modulo: { companyId: 2, nome: 'Clínica Nova', admin: true, escopos: { '*': ['*'] }, modulos: ['automations', 'channels', 'integrations'] },
+  sk_form: { companyId: 2, nome: 'Clínica Nova', admin: false, escopos: { deals: ['create', 'update'] } },
+  sk_form_largo: { companyId: 2, nome: 'Clínica Nova', admin: true, escopos: { '*': ['*'] } },
   sk_comum: { companyId: 2, nome: 'Clínica Nova', admin: false, escopos: { '*': ['*'] } },
   sk_curta: { companyId: 2, nome: 'Clínica Nova', admin: true, escopos: { users: ['read'], pipes: ['read'] } },
 }
@@ -174,7 +180,7 @@ semear(1, 'automation', [
     flowData: {
       nodes: [
         { id: 'start_flow-9', type: 'start_flow', data: { automationId: 701 } },
-        { id: 'http_request-1', type: 'http_request', data: { label: 'Avisa o ERP', url: 'https://erp.test/hook', headerNames: ['Authorization'] } },
+        { id: 'http_request-1', type: 'http_request', data: { label: 'Avisa o ERP', url: 'https://erp.test/hook', headers: { Authorization: 'Bearer segredo-do-erp' } } },
       ],
       edges: [],
     },
@@ -182,7 +188,7 @@ semear(1, 'automation', [
 ])
 semear(1, 'form', [{ id: 801, name: 'Contato', publicId: 'frm_abc', settings: { destination: { pipeId: 301, stageId: 401 } }, fields: [{ id: 201, label: 'Origem' }, { id: 'name', label: 'Nome' }] }])
 semear(1, 'domain', [{ id: 901, domain: 'lp.clinica.com', status: 'active' }])
-semear(1, 'landing', [{ id: 951, title: 'Promo', url: 'promo', domainId: 901, status: 'active', html: '<img src="https://cdn.test/companies/1/landings/a.png"><div id="f"></div><script src="https://antiga.cubo.test/sdk/form.js"></script><script>new Form({ form: \'frm_abc\', target: \'#f\' })</script>' }])
+semear(1, 'landing', [{ id: 951, title: 'Promo', url: 'promo', domainId: 901, status: 'active', html: '<img src="https://cdn.test/companies/1/landings/a.png"><div id="f"></div><script src="https://antiga.cubo.test/sdk/form.js"></script><script>new Form({ form: \'frm_abc\', target: \'#f\' })</script><script>var props = {"i5vfz9":{"pipe":"301","keycubo":"sk_velha_da_antiga"}}</script>' }])
 semear(1, 'integration', [{ id: 1001, name: 'WhatsApp oficial', type: 'whatsapp_business' }])
 semear(1, 'channel', [{ id: 1101, name: 'WhatsApp', integrationId: 1001, defaultAgentId: 601 }])
 semear(1, 'filter', [{ id: 1301, name: 'Meus novos', context: 'deal', userId: 11, pipeId: 301, link: 'pipe=301&stage=401&peoples=5' }])
@@ -195,6 +201,7 @@ const lista = (companyId, kind) => (banco[companyId][kind] ||= [])
 function existe(companyId, kind, id) {
   if (kind === 'user') return usuarios[companyId].some((u) => String(u.id) === String(id))
   if (kind === 'form_public_id') return lista(companyId, 'form').some((f) => f.publicId === id)
+  if (kind === 'apikey') return CONTAS[id]?.companyId === companyId
   if (kind === 'file' || ['deal', 'people', 'organization'].includes(kind)) return true
   return lista(companyId, kind).some((r) => String(r.id) === String(id))
 }
@@ -213,7 +220,10 @@ const servidor = createServer((pedido, resposta) => {
     if (!conta) return responde(resposta, 401, { errors: [{ message: 'Invalid API key' }] })
     const { companyId } = conta
     const corpo = partes.length ? JSON.parse(Buffer.concat(partes).toString()) : undefined
-    const comRefs = url.searchParams.get('include') === 'refs'
+    const incluir = (url.searchParams.get('include') || '').split(',')
+    const comRefs = incluir.includes('refs')
+    // Como o CRM: segredo só com a permissão marcada (o acesso total não basta).
+    if (incluir.includes('secrets') && !(conta.escopos.secrets || []).includes('read')) return responde(resposta, 403, { errors: [{ message: 'Missing scope: secrets:read' }] })
     const [, , recurso, id] = url.pathname.split('/')
 
     // Como o CRM: parâmetro desconhecido é 422.
@@ -227,7 +237,7 @@ const servidor = createServer((pedido, resposta) => {
           company: { id: companyId, name: conta.nome },
           user: { id: companyId === 1 ? 10 : 21, name: companyId === 1 ? 'Ana' : 'Dona', email: 'x', type: 'admin', isAdmin: conta.admin },
           apiKey: { id: 1, title: 'migração', type: 'integration', scopes: conta.escopos, fullAccess: total },
-          modules: {},
+          modules: { modules: [], activeSlugs: conta.modulos || ['ai-agents', 'automations', 'channels', 'integrations', 'instagram', 'forms', 'landing-pages', 'domains'] },
           counts: {},
         },
       })
@@ -261,7 +271,20 @@ const servidor = createServer((pedido, resposta) => {
 
     const kind = KIND_DA_ROTA[recurso]
     if (!kind) return responde(resposta, 404, { errors: [{ message: 'Route not found' }] })
-    const comoSai = (registro) => (comRefs ? { ...registro, refs: extrairRefs(kind, registro) } : registro)
+    // Sem `include=secrets`, o valor dos cabeçalhos do nó HTTP não sai: só o nome.
+    const semSegredo = (registro) => {
+      if (incluir.includes('secrets') || kind !== 'automation' || !registro.flowData) return registro
+      const nodes = registro.flowData.nodes.map((no) => {
+        if (!no.data?.headers) return no
+        const { headers, ...data } = no.data
+        return { ...no, data: { ...data, headerNames: Object.keys(headers) } }
+      })
+      return { ...registro, flowData: { ...registro.flowData, nodes } }
+    }
+    const comoSai = (original) => {
+      const registro = semSegredo(original)
+      return comRefs ? { ...registro, refs: extrairRefs(kind, registro) } : registro
+    }
     // Como o CRM: a listagem de automação é leve, a de base não traz o texto, e as duas recusam refs
     // junto com a de landing. Formulário e landing respondem o detalhe dentro de `{ data }`.
     const resumo = (registro) => {
@@ -417,6 +440,17 @@ await caso('conta: chave de usuário comum e chave sem permissão são barradas,
   confere(r.codigo === 1 && /faltam permissões na chave: .*automations:read/.test(r.saida) && /Chaves de API → editar/.test(r.saida), r.saida)
 })
 
+await caso('conta: sem a permissão de segredos na antiga e sem o módulo na nova, não deixa seguir', async () => {
+  escreveAcesso('origem', 'sk_origem_sem_segredo')
+  escreveAcesso('destino', 'sk_sem_modulo')
+  let r = await roda('conta.mjs', ['conferir', '--areas=automacoes,agentes'])
+  confere(r.codigo === 1 && /secrets:read/.test(r.saida) && /não vem com o acesso total/.test(r.saida), r.saida)
+  confere(/não tem o módulo “Agentes de IA” ligado/.test(r.saida) && !/módulo “Automações”/.test(r.saida), r.saida)
+  r = await roda('conta.mjs', ['conferir', '--areas=tags'])
+  confere(r.codigo === 0, `sem área com segredo nem módulo, passa\n${r.saida}`)
+  escreveAcesso('origem', 'sk_origem')
+})
+
 await caso('conta: a mesma conta dos dois lados é recusada', async () => {
   escreveAcesso('destino', 'sk_origem')
   const r = await roda('conta.mjs', ['conferir'])
@@ -445,17 +479,31 @@ await caso('plano: puxa as dependências, casa usuário por e-mail e MCP por nom
   confere(l.decisoes.usuarios['10'] === 20, 'Ana tinha que casar pelo e-mail, sem diferenciar maiúscula')
   confere(l.decisoes.mcp['1201'] === 2201, 'o MCP Stripe tinha que casar pelo nome')
   const ids = l.perguntas.map((p) => p.id).sort()
-  confere(JSON.stringify(ids) === JSON.stringify(['dominio:901', 'existente:category:1501', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
+  confere(JSON.stringify(ids) === JSON.stringify(['chave-formulario', 'dominio:901', 'existente:category:1501', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
   confere(/PLANO \(nada foi alterado ainda\)/.test(r.saida) && /Automações: 2 itens/.test(r.saida), r.saida)
   confere(Object.values(banco[2]).flat().length === 3, 'o plano não pode escrever na conta nova')
   confere(l.avisos.some((t) => /Boas-vindas.*alterações não publicadas/.test(t)), 'faltou o aviso do rascunho não publicado')
   confere(l.avisos.some((t) => /7777 \(em update_deal_field_7777\)/.test(t)) && !l.avisos.some((t) => /1201/.test(t)), `avisos: ${l.avisos.join(' | ')}`)
-  confere(l.pendencias.some((p) => /Recontato.*cabeçalhos do nó HTTP “Avisa o ERP” \(Authorization\)/.test(p.texto)), 'faltou a pendência dos cabeçalhos do nó HTTP')
+  confere(!l.pendencias.some((p) => /cabeçalhos do nó HTTP/.test(p.texto)), 'com os segredos lidos, o nó HTTP não precisa de tarefa manual')
+  confere(JSON.parse(readFileSync(join(PASTA, 'migracao', 'origem', 'automation.json'), 'utf8')).some((a) => a.flowData.nodes.some((n) => n.data.headers?.Authorization)), 'o plano tinha que ler os cabeçalhos com include=secrets')
 })
 
 await caso('aplicar: não começa com pergunta em aberto', async () => {
   const r = await roda('aplicar.mjs')
   confere(r.codigo === 3 && /perguntas esperando resposta/.test(r.saida), r.saida)
+})
+
+await caso('formulário do construtor: pede chave separada, recusa a larga e aceita a que só cria negócio', async () => {
+  let r = await roda('decidir.mjs', ['listar'])
+  confere(/\[chave-formulario\]/.test(r.saida) && /conta\.mjs" abrir formulario/.test(r.saida), r.saida)
+  r = await roda('conta.mjs', ['abrir', 'formulario'])
+  confere(/Negócios: criação/.test(readFileSync(join(PASTA, 'migracao', 'formulario.env'), 'utf8')), 'o modelo tinha que explicar a permissão')
+  writeFileSync(join(PASTA, 'migracao', 'formulario.env'), 'CUBO_API_KEY=sk_form_largo\n')
+  r = await roda('conta.mjs', ['conferir-formulario'])
+  confere(r.codigo === 1 && /permissões demais/.test(r.saida), r.saida)
+  writeFileSync(join(PASTA, 'migracao', 'formulario.env'), 'CUBO_API_KEY=sk_form\n')
+  r = await roda('conta.mjs', ['conferir-formulario'])
+  confere(r.codigo === 0 && !ledger().perguntas.some((p) => p.id === 'chave-formulario'), r.saida)
 })
 
 await caso('decidir: grava as respostas e recusa usuário que não existe na conta nova', async () => {
@@ -518,6 +566,9 @@ await caso('aplicar: rodar de novo continua de onde parou, sem duplicar, e faz a
   const produto = doDestino('product')[0]
   confere(produto.urlImage === null && l.pendencias.some((p) => /Avaliação.*não pôde ser copiado/.test(p.texto)), `produto: ${JSON.stringify(produto)}`)
   confere(landing.html.includes(`${BASE}/sdk/form.js`) && !landing.html.includes('antiga.cubo.test'), 'o SDK da página tinha que vir do endereço da conta nova')
+  confere(landing.html.includes(`"pipe":"${pipe}","keycubo":"sk_form"`), `o formulário do construtor tinha que usar o funil novo e a chave do formulário: ${landing.html}`)
+  const http = doDestino('automation').find((a) => a.name === 'Recontato').flowData.nodes.find((n) => n.id === 'http_request-1')
+  confere(http.data.headers?.Authorization === 'Bearer segredo-do-erp', `o cabeçalho do nó HTTP tinha que vir junto: ${JSON.stringify(http.data)}`)
   const etapas = doDestino('stage').filter((e) => e.pipeId === pipe).sort((a, b) => a.orderNr - b.orderNr).map((e) => e.name)
   confere(JSON.stringify(etapas) === JSON.stringify(['Ganho', 'Novo']), `ordem das etapas: ${etapas}`)
   confere(JSON.stringify(chamadas.publicadas) === JSON.stringify([automacao.id]) && l.itens['automation:701'].publicada, `publicadas: ${chamadas.publicadas}`)

@@ -3,7 +3,7 @@
 // no ledger. Puxa junto o que cada item escolhido usa (dependências), casa usuários por e-mail, acha
 // o que já existe na conta nova pelo nome e deixa as perguntas para a pessoa.
 import { mkdirSync } from 'node:fs'
-import { AREA, AREAS, GRUPOS, KINDS_DE_DADO, KIND_PUBLIC_ID, KIND_USUARIO, areasDaEscolha, rotuloDe } from './areas.mjs'
+import { AREA, AREAS, GRUPOS, KINDS_DE_DADO, KIND_CHAVE, KIND_PUBLIC_ID, KIND_USUARIO, areasDaEscolha, rotuloDe } from './areas.mjs'
 import { aviso, carregar, chaveItem, etapa, pendencia, registrar, salvar } from './ledger.mjs'
 import { argumentos, detalhe, ErroApi, falha, gravarJson, pasta, todos } from './lib.mjs'
 
@@ -37,14 +37,18 @@ salvar(ledger)
 
 // ---------------------------------------------------------------------------------------------
 // Leitura, com cache por área (origem e destino). A maioria das áreas traz os refs na listagem; as
-// marcadas com `detalhe` (landing, automação, base de conhecimento) só no detalhe, item a item.
+// marcadas com `detalhe` (landing, automação, base de conhecimento) só no detalhe, item a item. Os
+// segredos (chave do Cal.com, cabeçalho do nó HTTP…) também só saem no detalhe.
+
+const comSegredos = (kind) => Boolean(AREA[kind].segredos && ledger.origem?.segredos)
+const peloDetalhe = (kind) => Boolean(AREA[kind].detalhe || comSegredos(kind))
 
 const listaDaOrigem = {}
 const completoDaOrigem = {} // kind → Map(id → registro com refs)
 const doDestino = {}
 
 async function lerLista(kind) {
-  listaDaOrigem[kind] ||= await todos('origem', AREA[kind].detalhe ? AREA[kind].rota : `${AREA[kind].rota}?include=refs`)
+  listaDaOrigem[kind] ||= await todos('origem', peloDetalhe(kind) ? AREA[kind].rota : `${AREA[kind].rota}?include=refs`)
   return listaDaOrigem[kind]
 }
 
@@ -53,10 +57,10 @@ async function itemDaOrigem(kind, id) {
   const cache = (completoDaOrigem[kind] ||= new Map())
   const chave = String(id)
   if (cache.has(chave)) return cache.get(chave)
-  let registro = AREA[kind].detalhe ? undefined : (await lerLista(kind)).find((r) => String(r.id) === chave)
+  let registro = peloDetalhe(kind) ? undefined : (await lerLista(kind)).find((r) => String(r.id) === chave)
   if (registro === undefined) {
     try {
-      registro = await detalhe('origem', AREA[kind].rota, id, '?include=refs')
+      registro = await detalhe('origem', AREA[kind].rota, id, comSegredos(kind) ? '?include=refs,secrets' : '?include=refs')
     } catch (erro) {
       if (!(erro instanceof ErroApi && erro.codigo === 404)) throw erro
       registro = null
@@ -225,8 +229,26 @@ try {
       id: `dominio:${registro.id}`,
       tipo: 'dominio',
       origemId: registro.id,
-      texto: `O domínio ${registro.domain} não pode estar nas duas contas ao mesmo tempo. Tirar da conta antiga (as páginas dele saem do ar até a conta nova verificar) ou usar outro domínio na conta nova?`,
+      texto: `O domínio ${registro.domain} não pode estar nas duas contas ao mesmo tempo. Usar outro domínio na conta nova, ou usar o mesmo? Para usar o mesmo, VOCÊ precisa excluí-lo na conta antiga (a migração nunca mexe lá), e as páginas dele saem do ar até a conta nova verificar.`,
     })
+  }
+
+  // Formulário do construtor publica uma chave de API na página: a da conta antiga não serve na nova.
+  // Só pergunta quando há landing assim.
+  const comChave = [...itens.values()].filter(({ kind, registro }) => kind === 'landing' && (registro.refs || []).some((ref) => ref.kind === KIND_CHAVE))
+  if (comChave.length && !ledger.chaveFormulario) {
+    perguntas.push({
+      id: 'chave-formulario',
+      tipo: 'chave-formulario',
+      texto: `${comChave.length} landing page${comChave.length === 1 ? '' : 's'} do construtor (${comChave.map(({ registro }) => `“${rotuloDe(registro)}”`).join(', ')}) ${comChave.length === 1 ? 'tem' : 'têm'} formulário que manda os contatos com uma chave de API escrita na página. Na conta nova, precisa de uma chave separada, só para criar negócios.`,
+    })
+  }
+
+  // Instagram precisa do módulo próprio, além do de integrações.
+  for (const { kind, registro } of itens.values()) {
+    if (kind === 'integration' && registro.type === 'instagram' && ledger.destino?.modulos && !ledger.destino.modulos.includes('instagram')) {
+      aviso(ledger, `Integração “${rotuloDe(registro)}” é do Instagram, e a conta nova não tem o módulo Instagram ligado: ela não vai ser criada até ligarem o módulo.`)
+    }
   }
 
   // O que já existe na conta nova, pelo nome (as áreas simples; as outras o `aplicar` confere na hora).

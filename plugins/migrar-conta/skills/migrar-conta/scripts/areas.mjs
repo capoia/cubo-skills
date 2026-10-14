@@ -10,6 +10,12 @@ const motivo = (registro) => String(registro.reason ?? '').trim().toLowerCase()
 const SDK = /https?:\/\/[^\s"'<>()]+?\/sdk\/form\.js/g
 const CAMPOS_DA_PAGINA = ['html', 'head', 'codeHead', 'codeBody']
 
+// A integração trouxe alguma chave? (só com `include=secrets`)
+const temSegredo = (r) => Boolean(r.token || r.apiKey || r.config?.webhook?.headers || r.config?.verdata?.password || r.config?.facebookCapi?.accessToken)
+
+// Nome dos módulos do Cubo, para a conferência de acesso falar em língua de gente.
+export const NOME_MODULO = { 'ai-agents': 'Agentes de IA', automations: 'Automações', channels: 'Canais', integrations: 'Integrações', instagram: 'Instagram' }
+
 export const AREAS = [
   { kind: 'tag', rotulo: 'Tags', rota: '/api/tags', escopo: 'tags' },
   { kind: 'category', rotulo: 'Categorias', rota: '/api/categories', escopo: 'categories', nomeUnico: true },
@@ -30,17 +36,19 @@ export const AREAS = [
   { kind: 'stage', rotulo: 'Estágios', rota: '/api/stages', escopo: 'stages', escopoTambem: 'pipes', nomeUnico: true, nome: (r) => `${r.pipeId}|${nome(r)}` },
   {
     kind: 'oauth_credential', rotulo: 'Credenciais OAuth', rota: '/api/oauth-credentials', escopo: 'oauthCredentials',
-    // Pela chave nasce `disconnected`, sem o segredo: a pessoa digita e conecta na tela.
-    remover: ['status', 'lastError', 'lastRefreshAt', 'tokenExpiresAt', 'hasClientSecret', 'hasRefreshToken'],
-    pendencia: (r) => `Credencial OAuth “${r.name}”: digitar o client secret e, se pedir login, clicar em Conectar (Configurações → Credenciais OAuth).`,
+    // Nasce `disconnected`: o client secret vem com `include=secrets`, mas o login é sempre na tela.
+    remover: ['status', 'lastError', 'lastRefreshAt', 'tokenExpiresAt', 'hasClientSecret', 'hasRefreshToken'], segredos: true,
+    pendencia: (r) => (r.clientSecret ? `Credencial OAuth “${r.name}”: clicar em Conectar e fazer o login (Configurações → Credenciais OAuth).` : `Credencial OAuth “${r.name}”: digitar o client secret e clicar em Conectar (Configurações → Credenciais OAuth).`),
   },
   {
     kind: 'integration', rotulo: 'Integrações', rota: '/api/integrations', escopo: 'integrations',
-    // Nasce desligada, como casca: o segredo não sai da conta antiga.
-    remover: ['status'],
+    // Nasce desligada. Chave de serviço de fora (Cal.com, OpenAI, webhook…) vem com `include=secrets`
+    // e funciona igual na conta nova; o que nasce de login (WhatsApp, Instagram, Google…) se reconecta.
+    remover: ['status'], segredos: true, modulo: 'integrations',
     pendencia: (r) => {
-      const cabecalhos = r.config?.webhook?.headerNames?.length ? ` Preencher também os cabeçalhos do webhook (${r.config.webhook.headerNames.join(', ')}).` : ''
-      return `Integração “${r.name}” (${r.type}): reconectar e ligar na conta nova (Configurações → Integrações). As chaves e logins não são copiados.${cabecalhos}`
+      if (temSegredo(r)) return `Integração “${r.name}” (${r.type}): a chave veio junto. Conferir e ligar (Configurações → Integrações).`
+      const cabecalhos = r.config?.webhook?.headerNames?.length && !r.config.webhook.headers ? ` Preencher também os cabeçalhos do webhook (${r.config.webhook.headerNames.join(', ')}).` : ''
+      return `Integração “${r.name}” (${r.type}): reconectar e ligar na conta nova (Configurações → Integrações).${cabecalhos}`
     },
   },
   // MCP não se cria por API (nasce de login no navegador): só casa pelo nome com o que já existe.
@@ -62,11 +70,14 @@ export const AREAS = [
   },
   {
     kind: 'custom_intent', rotulo: 'Intents de agente', rota: '/api/intents', escopo: 'intents',
-    remover: ['promptChip', 'headerNames', 'hasSecrets', 'usesOauthCredential'], nascer: { enabled: false },
-    pendencia: (r) => (r.hasSecrets || r.headerNames?.length ? `Intent “${r.name}”: preencher os segredos e cabeçalhos${r.headerNames?.length ? ` (${r.headerNames.join(', ')})` : ''} e ligar (Agentes → Intents).` : `Intent “${r.name}”: revisar e ligar (Agentes → Intents).`),
+    remover: ['promptChip', 'headerNames', 'hasSecrets', 'usesOauthCredential'], nascer: { enabled: false }, segredos: true,
+    pendencia: (r) => {
+      const faltam = (r.hasSecrets && !r.secrets) || (r.headerNames?.length && !r.headers)
+      return faltam ? `Intent “${r.name}”: preencher os segredos e cabeçalhos${r.headerNames?.length ? ` (${r.headerNames.join(', ')})` : ''} e ligar (Agentes → Intents).` : `Intent “${r.name}”: revisar e ligar (Agentes → Intents).`
+    },
   },
-  { kind: 'agent_folder', rotulo: 'Pastas de agentes', rota: '/api/agent-folders', escopo: 'agents', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true },
-  { kind: 'agent', rotulo: 'Agentes de IA', rota: '/api/agents', escopo: 'agents', textoGrande: ['systemPrompt'], nomeUnico: true },
+  { kind: 'agent_folder', rotulo: 'Pastas de agentes', rota: '/api/agent-folders', escopo: 'agents', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true, modulo: 'ai-agents' },
+  { kind: 'agent', rotulo: 'Agentes de IA', rota: '/api/agents', escopo: 'agents', textoGrande: ['systemPrompt'], nomeUnico: true, modulo: 'ai-agents' },
   {
     kind: 'domain', rotulo: 'Domínios', rota: '/api/domains', escopo: 'domains',
     nome: (r) => String(r.domain ?? '').trim().toLowerCase(),
@@ -86,17 +97,17 @@ export const AREAS = [
     },
     pendencia: (r) => `Landing “${r.title}”: revisar e ativar (Landing pages → ${r.title} → ativar).`,
   },
-  { kind: 'automation_folder', rotulo: 'Pastas de automações', rota: '/api/automation-folders', escopo: 'automations', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true },
+  { kind: 'automation_folder', rotulo: 'Pastas de automações', rota: '/api/automation-folders', escopo: 'automations', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true, modulo: 'automations' },
   {
     kind: 'automation', rotulo: 'Automações', rota: '/api/automations', escopo: 'automations',
     // Nasce rascunho e desligada; se estava publicada na conta antiga, a skill publica no fim (a
     // versão publicada não liga nada sozinha) e a pessoa só liga.
-    remover: ['publishedVersion', 'hasUnpublishedChanges', 'status'], proposito: 'automation',
+    remover: ['publishedVersion', 'hasUnpublishedChanges', 'status'], proposito: 'automation', segredos: true, modulo: 'automations',
     detalhe: true, // a listagem é leve (sem `flowData`) e recusa `include=refs`
     pendencia: (r) => {
       const partes = []
-      // O nó HTTP sai sem o valor dos cabeçalhos (`headerNames`): a pessoa digita de novo.
-      const http = (r.flowData?.nodes || []).filter((no) => no?.data?.headerNames?.length)
+      // Sem `include=secrets`, o nó HTTP sai só com o nome dos cabeçalhos: a pessoa digita de novo.
+      const http = (r.flowData?.nodes || []).filter((no) => no?.data?.headerNames?.length && !no.data.headers)
       for (const no of http) partes.push(`preencher os cabeçalhos do nó HTTP “${no.data.label || no.id}” (${no.data.headerNames.join(', ')})`)
       if (r.status === 'active') partes.push('estava ligada na conta antiga: revisar e ligar')
       return partes.length ? `Automação “${r.name}”: ${partes.join('; ')}.` : null
@@ -106,6 +117,7 @@ export const AREAS = [
     kind: 'channel', rotulo: 'Canais', rota: '/api/channels', escopo: 'channels',
     remover: ['connectionState', 'connectedPhone', 'connectionError', 'connectionChangedAt', 'lastEventAt', 'suspendedAt', 'status'],
     aguardaConexao: true, // a integração do canal precisa estar conectada na conta nova
+    modulo: 'channels',
     pendencia: (r) => `Canal “${r.name}”: nasce desligado na conta nova. Conferir e ligar (Canais → ${r.name}).`,
   },
   // Por último: o `link` precisa já ter os IDs da conta nova.

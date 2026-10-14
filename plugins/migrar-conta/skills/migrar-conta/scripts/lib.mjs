@@ -5,7 +5,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join, resolve } from 'node:path'
 
 export const CONTAS = ['origem', 'destino']
-export const NOME_CONTA = { origem: 'conta de origem (a antiga)', destino: 'conta nova (destino)' }
+// `formulario`: a chave que os formulários do construtor publicam na página da conta nova. Só cria
+// negócio; o endereço é o da conta nova.
+export const NOME_CONTA = { origem: 'conta de origem (a antiga)', destino: 'conta nova (destino)', formulario: 'chave do formulário das landing pages (conta nova)' }
 
 export function falha(mensagem, codigo = 1) {
   console.error(`\n✘ ${mensagem}`)
@@ -59,11 +61,12 @@ export function acesso(conta) {
       if (achado) valores[achado[1]] = achado[2].replace(/^(['"])(.*)\1$/, '$2')
     }
   }
+  const base = valores.CUBO_BASE_URL || (conta === 'formulario' ? acesso('destino').base : '')
   return {
     conta,
     arquivo,
     existe: existsSync(arquivo),
-    base: (valores.CUBO_BASE_URL || '').replace(/\/+$/, ''),
+    base: (base || '').replace(/\/+$/, ''),
     chave: valores.CUBO_API_KEY || '',
   }
 }

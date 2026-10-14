@@ -3,13 +3,14 @@
 // editor do sistema. Depois o `conferir` testa conexão, permissões e se as contas são diferentes,
 // e não deixa seguir enquanto faltar algo.
 import { chmodSync, existsSync, writeFileSync } from 'node:fs'
-import { AREA, areasDaEscolha } from './areas.mjs'
+import { AREA, NOME_MODULO, areasDaEscolha } from './areas.mjs'
 import { carregar, etapa, registrar, salvar } from './ledger.mjs'
 import { CONTAS, NOME_CONTA, abrirNoSistema, acesso, api, argumentos, arquivoDaConta, falha } from './lib.mjs'
 
 const USO = `uso:
-  conta.mjs abrir <origem|destino>     cria o arquivo de acesso (se faltar) e abre no editor
-  conta.mjs conferir [--areas=…]       testa as duas contas; sai com erro se faltar algo`
+  conta.mjs abrir <origem|destino|formulario>   cria o arquivo de acesso (se faltar) e abre no editor
+  conta.mjs conferir [--areas=…]                testa as duas contas; sai com erro se faltar algo
+  conta.mjs conferir-formulario                 testa a chave do formulário das landing pages`
 
 const MODELO = (conta) => `# Acesso à ${NOME_CONTA[conta].toUpperCase()} do Cubo.
 # Preencha as duas linhas de baixo, salve o arquivo (Ctrl+S) e feche.
@@ -23,10 +24,21 @@ CUBO_BASE_URL=
 CUBO_API_KEY=
 `
 
+const MODELO_FORMULARIO = `# Chave do FORMULÁRIO das landing pages, na CONTA NOVA do Cubo.
+# Os formulários feitos no construtor de páginas mandam os contatos para o Cubo com uma chave que
+# fica escrita na própria página (qualquer visitante consegue ver). Por isso ela é separada e só
+# pode criar negócios.
+#
+# No Cubo da CONTA NOVA: Configurações → Chaves de API → Nova chave → nome "Formulário das páginas"
+# → marque SÓ "Negócios: criação" e "Negócios: edição". Nada mais.
+# Cole a chave inteira depois do sinal de igual, sem espaço. Salve (Ctrl+S) e feche.
+CUBO_API_KEY=
+`
+
 function abrir(conta) {
-  if (!CONTAS.includes(conta)) falha(`diga qual conta: origem ou destino.\n${USO}`, 2)
+  if (![...CONTAS, 'formulario'].includes(conta)) falha(`diga qual: origem, destino ou formulario.\n${USO}`, 2)
   const arquivo = arquivoDaConta(conta)
-  if (!existsSync(arquivo)) writeFileSync(arquivo, MODELO(conta), { mode: 0o600 })
+  if (!existsSync(arquivo)) writeFileSync(arquivo, conta === 'formulario' ? MODELO_FORMULARIO : MODELO(conta), { mode: 0o600 })
   try {
     chmodSync(arquivo, 0o600)
   } catch {}
@@ -37,8 +49,9 @@ function abrir(conta) {
 }
 
 // Escopos no formato do CRM: { pipes: ['read'], '*': ['*'] }. Chave antiga e chave de acesso total
-// chegam com `fullAccess: true` e passam em tudo.
+// chegam com `fullAccess: true` e passam em tudo — menos em segredo, que só vale marcado.
 function temEscopo(chave, recurso, acao) {
+  if (recurso === 'secrets') return (chave?.scopes?.secrets || []).includes(acao)
   if (chave?.fullAccess) return true
   const escopos = chave?.scopes || {}
   if ((escopos['*'] || []).includes('*')) return true
@@ -83,6 +96,8 @@ async function conferirConta(conta, kinds, linhas) {
     precisa.set(recurso, atual)
   }
   for (const kind of kinds) pede(AREA[kind].escopo, conta === 'origem' ? ['read'] : AREA[kind].acoes, AREA[kind].escopoTambem)
+  // As chaves de serviço de fora (Cal.com, OpenAI, cabeçalho do nó HTTP…) vêm junto: a origem lê.
+  if (conta === 'origem' && kinds.some((kind) => AREA[kind].segredos)) pede('secrets', ['read'])
   // Arquivo do storage da conta antiga (imagem de produto, de proposta, da página…) é copiado.
   if (conta === 'destino') pede('files', ['create'])
   const faltam = []
@@ -94,10 +109,31 @@ async function conferirConta(conta, kinds, linhas) {
   }
   if (faltam.length) {
     tudoCerto = false
-    ruim(`faltam permissões na chave: ${faltam.join(', ')}. No Cubo: Configurações → Chaves de API → editar a chave → marcar essas permissões.`)
+    const segredo = faltam.includes('secrets:read') ? ' A permissão "Segredos" não vem com o acesso total: tem que ser marcada à parte.' : ''
+    ruim(`faltam permissões na chave: ${faltam.join(', ')}. No Cubo: Configurações → Chaves de API → editar a chave → marcar essas permissões.${segredo}`)
   } else ok(`permissões de ${conta === 'origem' ? 'leitura' : 'leitura, criação e edição'} conferidas`)
 
-  return tudoCerto ? { companyId: empresa.id, nome: empresa.name ?? `conta nº ${empresa.id}`, base: config.base, usuario: eu.user ?? null, modulos: eu.modules ?? null, contagem: eu.counts ?? null } : null
+  // Módulo desligado na conta nova: o Cubo recusa a criação, e descobrir no meio deixa metade feita.
+  if (conta === 'destino' && eu.modules) {
+    const ativos = new Set(eu.modules.activeSlugs || [])
+    const precisa = new Map()
+    for (const kind of kinds) if (AREA[kind].modulo && !ativos.has(AREA[kind].modulo)) precisa.set(AREA[kind].modulo, AREA[kind].rotulo)
+    if (precisa.size) {
+      tudoCerto = false
+      for (const [modulo, area] of precisa) ruim(`a conta nova não tem o módulo “${NOME_MODULO[modulo] || modulo}” ligado, e ele é preciso para migrar ${area.toLowerCase()}. Ligue o módulo na conta nova (ou peça ao suporte do Cubo), ou tire essa parte da escolha.`)
+    } else if (kinds.some((kind) => AREA[kind].modulo)) ok('módulos necessários ligados na conta nova')
+  }
+
+  return tudoCerto
+    ? {
+        companyId: empresa.id,
+        nome: empresa.name ?? `conta nº ${empresa.id}`,
+        base: config.base,
+        usuario: eu.user ?? null,
+        modulos: eu.modules?.activeSlugs ?? null,
+        segredos: temEscopo(eu.apiKey, 'secrets', 'read'),
+      }
+    : null
 }
 
 async function conferir() {
@@ -137,7 +173,47 @@ async function conferir() {
   console.log('\nResultado: TUDO CERTO. Pode seguir.')
 }
 
+// A chave do formulário fica escrita na página publicada: tem que ser da conta nova e só criar e
+// editar negócio. Qualquer permissão a mais seria entregar a conta a quem abrir o código da página.
+async function conferirFormulario() {
+  const ledger = carregar()
+  if (!ledger.destino) falha('confira antes o acesso às duas contas: node "<scripts>/conta.mjs" conferir', 2)
+  const config = acesso('formulario')
+  const linhas = [`${NOME_CONTA.formulario}:`]
+  const ruim = (texto) => linhas.push(`  ✘ ${texto}`)
+  let certo = false
+  if (!config.existe || !config.chave) ruim('a chave está vazia. Para abrir o arquivo e colar: node "<scripts>/conta.mjs" abrir formulario')
+  else if (config.chave === acesso('destino').chave || config.chave === acesso('origem').chave) ruim('essa é a chave da migração. Crie uma chave SEPARADA, só com "Negócios: criação" e "Negócios: edição".')
+  else {
+    try {
+      const eu = (await api('formulario', 'GET', '/api/whoami', undefined, config))?.data
+      const escopos = eu.apiKey?.scopes || {}
+      const demais = Object.keys(escopos).filter((recurso) => recurso !== 'deals')
+      if (eu.company?.id !== ledger.destino.companyId) ruim(`a chave é da conta “${eu.company?.name}”, não da conta nova “${ledger.destino.nome}”. Crie a chave dentro da conta nova.`)
+      else if (eu.apiKey?.fullAccess || demais.length) ruim(`a chave tem permissões demais${demais.length ? ` (${demais.join(', ')})` : ' (acesso total)'}. Ela fica visível na página: deixe marcado só "Negócios: criação" e "Negócios: edição".`)
+      else if (!['create', 'update'].every((acao) => (escopos.deals || []).includes(acao))) ruim('faltam "Negócios: criação" e "Negócios: edição" na chave.')
+      else {
+        linhas.push(`  ✔ chave da conta nova, só com criação e edição de negócios`)
+        certo = true
+      }
+    } catch (erro) {
+      ruim(erro.message)
+    }
+  }
+  console.log(linhas.join('\n'))
+  if (!certo) {
+    console.log('\nResultado: FALTA ACERTAR. Corrija o que está com ✘ e confira de novo.')
+    process.exit(1)
+  }
+  ledger.perguntas = ledger.perguntas.filter((pergunta) => pergunta.tipo !== 'chave-formulario')
+  ledger.chaveFormulario = true
+  registrar(ledger, 'Chave do formulário das landing pages conferida')
+  salvar(ledger)
+  console.log('\nResultado: TUDO CERTO. Os formulários das páginas vão usar essa chave.')
+}
+
 const [comando, conta] = process.argv.slice(2)
 if (comando === 'abrir') abrir(conta)
 else if (comando === 'conferir') await conferir()
+else if (comando === 'conferir-formulario') await conferirFormulario()
 else falha(USO, 2)

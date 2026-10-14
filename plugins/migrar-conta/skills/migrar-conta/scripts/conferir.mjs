@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto'
 import { AREA, KINDS_DE_DADO, KIND_ARQUIVO, KIND_CHAVE, KIND_PUBLIC_ID, KIND_USUARIO } from './areas.mjs'
 import { carregar, etapa, registrar, salvar } from './ledger.mjs'
-import { detalhe, falha, todos } from './lib.mjs'
+import { acesso, detalhe, falha, todos } from './lib.mjs'
 import { ler } from './refs.mjs'
 
 const ledger = carregar()
@@ -30,6 +30,8 @@ async function existeNoDestino(kind, id) {
 const idsDaOrigem = (kind) => new Set(Object.keys(ledger.mapa[kind] || {}))
 const pastaDaOrigem = ledger.origem ? `companies/${ledger.origem.companyId}/` : null
 
+const chaveDoFormulario = ledger.chaveFormulario ? acesso('formulario').chave : null
+
 const problemas = []
 const avisos = []
 let conferidos = 0
@@ -48,8 +50,9 @@ try {
         problemas.push({ item: rotulo, texto: `${onde} aponta para um ${ref.kind} específico (dado da conta antiga)` })
         continue
       }
+      // Na página só pode estar a chave do formulário (a que só cria negócio); sem mostrar a chave.
       if (ref.kind === KIND_CHAVE) {
-        problemas.push({ item: rotulo, texto: `${onde} ainda tem uma chave de API embutida` })
+        if (!chaveDoFormulario || String(ref.id) !== chaveDoFormulario) problemas.push({ item: rotulo, texto: `${ref.path}: a página tem uma chave de API que não é a do formulário da conta nova (${String(ref.id).slice(0, 8)}…)` })
         continue
       }
       if (ref.kind === KIND_ARQUIVO) {

@@ -18,8 +18,9 @@ sobrou.
 | O quê | Como conseguir |
 | --- | --- |
 | **Node.js 20.9 ou mais novo** | Windows: `winget install OpenJS.NodeJS.LTS` no PowerShell (ou o instalador LTS de https://nodejs.org). macOS: instalador LTS de https://nodejs.org. Depois, **feche e abra o Claude Code**. |
-| **Chave de API da conta antiga** | no Cubo da conta antiga, com um administrador: **Configurações → Chaves de API**. Basta leitura. |
+| **Chave de API da conta antiga** | no Cubo da conta antiga, com um administrador: **Configurações → Chaves de API**. Leitura, e **"Segredos"** para trazer as chaves dos serviços de fora (marcada à parte: não vem no acesso total). |
 | **Chave de API da conta nova** | no Cubo da conta nova, com um administrador: leitura, criação e edição, e "Arquivos: criação" (para copiar as imagens). |
+| **Chave do formulário** (só se houver landing page do construtor com formulário) | no Cubo da conta nova: uma chave separada, só com "Negócios: criação" e "Negócios: edição". Ela fica escrita na página. |
 
 Não há mais nada para instalar.
 
@@ -61,18 +62,22 @@ e não cria nada duas vezes.
 
 ## O que não dá para copiar
 
-Conexões e senhas não saem da conta antiga. Na conta nova, você reconecta:
+As chaves de serviços de fora **vêm junto**: Cal.com, OpenAI e as outras IAs, os cabeçalhos das
+automações que chamam outros sistemas, os segredos dos intents de agente e o client secret das
+credenciais OAuth. Elas funcionam igual em qualquer conta.
+
+O que nasce de um login e fica preso à conta não sai. Na conta nova, você reconecta:
 
 - WhatsApp, Z-API e Instagram;
-- Google Ads, Facebook Lead Ads e RD;
-- as chaves digitadas (OpenAI, Cal.com e outras);
-- os segredos das credenciais OAuth e dos intents de agente;
+- Google e Facebook Lead Ads;
+- o login das credenciais OAuth (o client secret já vem; falta clicar em Conectar);
 - as conexões MCP.
 
 O relatório traz essa lista, com caixas de marcar.
 
 Usuários também não são criados: quem precisar existir na conta nova tem que ser cadastrado antes.
-E o mesmo domínio não pode ficar nas duas contas ao mesmo tempo.
+E o mesmo domínio não pode ficar nas duas contas ao mesmo tempo: para usar o mesmo, você exclui na
+conta antiga (a migração nunca mexe lá).
 
 ## Onde fica o andamento
 
@@ -80,10 +85,12 @@ Na pasta `migracao/`, onde você abriu o Claude Code:
 
 | Arquivo | O que é |
 | --- | --- |
-| `origem.env`, `destino.env` | as chaves. **São segredo**: não envie para ninguém |
+| `origem.env`, `destino.env`, `formulario.env` | as chaves. **São segredo**: não envie para ninguém |
 | `LEDGER.md` | o andamento, para ler: etapas, o que foi criado, o que falta |
 | `ledger.json` | o mesmo, para a skill |
-| `origem/` | a foto da conta antiga lida no plano |
+| `origem/` | a foto da conta antiga lida no plano, **com as chaves dos serviços de fora**: segredo também |
 | `relatorio.html` | o relatório final |
 
-Quando terminar, apague as duas chaves no Cubo e a pasta `migracao/`, se quiser.
+Quando terminar, apague no Cubo as duas chaves "Migração" (a da conta antiga e a da conta nova) e
+apague a pasta `migracao/`, que guarda as chaves dos serviços de fora. **A chave do formulário fica**:
+as páginas usam.

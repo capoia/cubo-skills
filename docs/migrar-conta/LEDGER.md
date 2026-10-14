@@ -42,8 +42,11 @@ Documentos irmãos:
 | 2026-10-13 | Landing do construtor continua editável no construtor (o CRM vai aceitar `components`/`styles`) | migrar como HTML tiraria a edição |
 | 2026-10-13 | Domínio: a pessoa escolhe entre tirar da origem (fora do ar até verificar) e um domínio temporário | não existe nas duas contas ao mesmo tempo |
 | 2026-10-13 | Chave da origem só lê; a skill **nunca escreve na conta de origem** | migração errada não pode estragar a conta que está funcionando |
-| 2026-10-14 | A chave de API do formulário do construtor (`keycubo`) **sai** da landing, com pendência | o Cubo só aceita a chave da conta nova, e a única que a skill tem é a da migração, com escrita: publicá-la numa página entregaria a conta |
-| 2026-10-14 | A skill não exclui o domínio da conta antiga, mesmo com `domains:delete` existindo | a regra "nunca escrever na origem" vale também aqui; a pessoa exclui na tela |
+| 2026-10-14 | **Os segredos vêm junto** (chave do Cal.com, das IAs, cabeçalho do nó HTTP e do webhook, segredos de intent, client secret OAuth). Pedido ao CRM: `secrets:read` + `?include=secrets` ([SEGREDOS-CRM.md](SEGREDOS-CRM.md)) | o uso é franqueadora replicando uma conta modelo; são chaves de serviço de fora, que funcionam em qualquer conta. O que nasce de login (WhatsApp, Instagram, Google, MCP) continua se reconectando |
+| 2026-10-14 | A permissão `secrets` **não** vem com o acesso total; a skill exige marcada à parte na chave da origem | senão toda chave `*:*` que já existe passaria a vazar segredo |
+| 2026-10-14 | Formulário do construtor: a skill pede uma **terceira chave**, da conta nova, só com `deals:create`/`deals:update`, e troca o `keycubo` por ela. Só quando há landing assim | a chave fica visível na página; o construtor chama `POST /api/deals` e `PUT /api/deals/:id`. A da migração (com escrita) nunca vai para página |
+| 2026-10-14 | Módulos conferidos no acesso (`whoami.modules.activeSlugs`): agentes (`ai-agents`), automações, canais, integrações | descobrir no meio deixa metade criada |
+| 2026-10-14 | A skill não exclui o domínio da conta antiga, mesmo com `domains:delete` existindo; a pergunta diz que, para usar o mesmo, a pessoa exclui lá | a regra "nunca escrever na origem" vale também aqui. Raramente vão querer o mesmo |
 | 2026-10-14 | "Criar outro igual" em área de nome único põe " (migrado)" no nome | o Cubo recusa o repetido com 422; perguntar de novo cansaria a pessoa |
 | 2026-10-14 | Automação publicada na origem é publicada no destino depois da 2ª passada; nunca ligada | publicar não liga nada; o PUT troca o rascunho, então publicar antes perderia as ligações |
 | 2026-10-14 | Arquivo copiado por **finalidade** (`produto|url`), uma vez só | imagem de produto só vale na pasta de produto; o `import-url` não deduplica e conta na cota |
@@ -115,10 +118,11 @@ a ordem de criação diante das conferências de posse, e módulos desligados na
 ## Pendências e ideias
 
 - Testar com Haiku, Sonnet e Opus (o modelo segue o fluxo? pergunta com escolha clicável?).
-- Nó HTTP e webhook de integração: hoje vira pendência ("preencher os cabeçalhos"). O POST aceita os
-  valores; dá para perguntar na hora (segredo na conversa? provavelmente pelo arquivo, como a chave).
-- Módulo desligado na conta nova (agentes, automações, canais, integrações): hoje cai como erro do
-  item. Dava para conferir no `whoami.modules` antes e barrar no acesso.
+- **Aguardando o CRM:** `secrets:read` e `?include=secrets` ([SEGREDOS-CRM.md](SEGREDOS-CRM.md)). Até
+  lá, a conferência barra a origem quando a escolha tem área com segredo — de propósito.
+- Cota de formulários, landings e domínios na conta nova: o CRM reserva por unidade; uma conta nova
+  com cota menor que o número de páginas da antiga falha no meio. Conferir no plano (se o `whoami`
+  passar a dar a cota).
 - `send_meta_conversion.eventId` é ID dentro da config da integração, não ref: só funciona se a
   integração da conta nova tiver os mesmos eventos. Avisar no relatório.
 - Evals com `skill-creator` depois que houver ambiente.
@@ -163,3 +167,7 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   finalidade com par guardado, " (migrado)" em nome único, ordem das etapas, publicação das
   automações, host do SDK trocado, limite da base, hash do texto aparado, funis trazem as etapas.
   Fumaça cobre tudo isso (17 casos). Próximo: ambiente local com contas semeadas.
+- **2026-10-14** — Decisões do Wellington: segredos vêm junto (briefing [SEGREDOS-CRM.md](SEGREDOS-CRM.md)
+  para o CRM), chave separada do formulário do construtor (`conta.mjs abrir formulario` e
+  `conferir-formulario`), módulos conferidos no acesso, domínio continua sem exclusão pela skill.
+  Relatório ganhou "Para fechar" (apagar as chaves da migração e a pasta). Fumaça: 19 casos.

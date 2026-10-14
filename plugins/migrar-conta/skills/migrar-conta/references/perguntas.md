@@ -8,8 +8,9 @@ Faça até 4 perguntas por vez.
 | --- | --- | --- |
 | `usuario:<nº>` | até 3 usuários da conta nova (os de nome mais parecido) + "O dono da chave da conta nova". Pelo "Outro", a pessoa digita outro nome; ache o número no `listar` | `decidir.mjs usuario <nº> <nºNovo|dono>` |
 | `existente:<área:nº>` | Usar o que já existe (recomendado) · Criar outro igual · Pular | `decidir.mjs existente <área:nº> usar|criar|pular` |
-| `dominio:<nº>` | Usar outro domínio na conta nova (recomendado) · Tirar da conta antiga · Pular | `decidir.mjs dominio <nº> outro:<domínio>|trocar|pular` |
+| `dominio:<nº>` | Usar outro domínio na conta nova (recomendado) · Usar o mesmo (você exclui na conta antiga) · Pular | `decidir.mjs dominio <nº> outro:<domínio>|trocar|pular` |
 | `mcp:<nº>` | Vou conectar na conta nova (aí rode o `plano` de novo) · Seguir sem ela | `decidir.mjs mcp <nº> remover` (só no "seguir sem") |
+| `chave-formulario` | não é clicável: peça a chave separada do formulário, como em [acesso.md](acesso.md) | `conta.mjs conferir-formulario` |
 
 ## Muitos itens que já existem
 

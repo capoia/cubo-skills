@@ -45,6 +45,7 @@ if (comando === 'listar') {
     if (pergunta.tipo === 'existente') console.log('   opções: usar | criar | pular')
     if (pergunta.tipo === 'dominio') console.log('   opções: trocar | pular | outro:<novo domínio>')
     if (pergunta.tipo === 'mcp') console.log('   opções: remover (ou conectar na conta nova e rodar o plano de novo)')
+    if (pergunta.tipo === 'chave-formulario') console.log('   como responder: node "<scripts>/conta.mjs" abrir formulario  →  a pessoa cola a chave  →  node "<scripts>/conta.mjs" conferir-formulario')
   }
 } else if (comando === 'usuario') {
   if (!alvo || !resposta) falha(USO, 2)
