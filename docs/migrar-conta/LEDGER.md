@@ -26,7 +26,7 @@ Documentos irmãos:
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
 | Relatório HTML | `scripts/relatorio.mjs` | ✅ 2026-10-13 |
 | Fumaça no CI (17 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
-| Ambiente local com contas semeadas (slot do `cubo-crm`) | — | ⏳ próximo |
+| Ambiente local com contas semeadas (slot do `cubo-crm`) | slot 4, `../cubo-crm-wt-migrar-conta-teste` (porta 3337, banco `crm_wt4`) | ✅ 2026-10-14 — ver "Teste contra o CRM real" |
 | Evals (conta vazia, nome repetido, referência inexistente) | `evals/evals.json` | ⏳ depois do ambiente |
 
 ## Decisões
@@ -115,6 +115,46 @@ Fonte da verdade da leitura, no `cubo-crm`: `start/routes/api.ts`, `app/refs/*`,
 Cubo de mentira. O que pode surpreender: campos do GET que o validador recusa (em vez de ignorar),
 a ordem de criação diante das conferências de posse, e módulos desligados na conta nova.
 
+## Teste contra o CRM real (2026-10-14)
+
+**Ambiente:** worktree `../cubo-crm-wt-migrar-conta-teste` (slot 4, `pnpm dev:docker`, porta 3337,
+banco `crm_wt4`), criado com `scripts/backlog-worktree-setup.sh`. Origem = "Teste Pagante" (nº 9,
+3 usuários), destino = "Teste Bonificada" (nº 15, 1 usuário). No `.env.docker` do slot:
+`APP_URL=http://localhost:3337` (o SDK da página só é aceito do endereço da conta) e
+`W8_TOKEN=desligado-no-slot` (o slot herdava o token de produção do W8). Chaves gravadas direto em
+`apikeys`; a da origem com `secrets:read` marcado (o CRM ainda ignora). Módulos de canais, automações
+e agentes ligados na conta destino por um seeder local (`99_migrar_conta_modulos_seeder.ts`, não
+versionado). A origem foi semeada **pela própria API**, com referência cruzada em todas as áreas.
+
+**Resultado:** `todos` → 67 itens; 59 criados, 3 reaproveitados, 5 canais aguardando a conexão do
+WhatsApp (esperado). Conferência: nenhum ID da conta antiga. Conferido também por fora: membros,
+campo em destaque e ordem das etapas do funil; chips, nome de ferramenta, handoff, follow-up e base
+do agente; gatilho, nós e ciclo A↔B das automações (publicadas, desligadas); chave do formulário,
+funil, formulário e input da landing do construtor; `frm_` e SDK da landing em HTML; filtro,
+webhook, produto, departamento. Rodar o `aplicar` de novo não duplicou nada. Nenhuma chave no
+relatório nem no ledger.
+
+**Defeitos achados e corrigidos na skill:**
+
+- lista com o mesmo usuário repetido (três usuários da origem → o dono) → 422. `semRepetidos`;
+- etapa com `rottenDays: 0` → 422 (a leitura devolve 0, a criação exige ≥1). `preparar` manda null;
+- aviso de número sem ref no prompt não disparava: exigia 3 dígitos e contava como coberto o número
+  do chip. Agora olha o trecho do ref;
+- textos: pergunta de "já existe" mostrava o domínio antigo; avisa quando o repetido é cópia da
+  própria migração; "espera X, X"; plural de 1 pergunta; "agentes de ia".
+
+**Para o CRM:**
+
+- `GET /api/stages` devolve `rottenDays: 0` que o `POST` recusa (mín. 1). Normalizar (0 → null) num
+  dos lados;
+- `scripts/backlog-worktree-setup.sh` não sobrescreve `W8_*`: todo slot fala com o W8 de produção.
+  Aqui um `POST /api/domains` do teste chegou lá (recusado por ser `.local`);
+- `PUT /api/filters`: aceitou `users=25%2C25` (repetido) no `link`.
+
+**Ainda não testado de verdade:** segredos (o CRM ainda não entrega), canais (precisam de WhatsApp
+conectado), cópia de arquivo (`import-url` contra o MinIO do slot: a origem não tinha arquivo no
+storage), cota cheia (413) e o 429.
+
 ## Pendências e ideias
 
 - Testar com Haiku, Sonnet e Opus (o modelo segue o fluxo? pergunta com escolha clicável?).
@@ -171,3 +211,5 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   para o CRM), chave separada do formulário do construtor (`conta.mjs abrir formulario` e
   `conferir-formulario`), módulos conferidos no acesso, domínio continua sem exclusão pela skill.
   Relatório ganhou "Para fechar" (apagar as chaves da migração e a pasta). Fumaça: 19 casos.
+- **2026-10-14** — Teste contra o CRM real (slot 4): 59 criados, conferência limpa. Quatro defeitos
+  corrigidos (repetidos, `rottenDays: 0`, aviso do prompt, textos); três achados para o CRM. Fumaça: 20 casos.

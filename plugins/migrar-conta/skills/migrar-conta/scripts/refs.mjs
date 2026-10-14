@@ -211,3 +211,33 @@ export function aplicarRefs(registro, refs, decidir) {
 export function campoRaiz(ref) {
   return String(partesDoCaminho(ref.path)[0])
 }
+
+// Depois da troca, uma lista pode ficar com o mesmo ID duas vezes: três usuários da conta antiga que
+// ficaram todos com o dono da conta nova viram três membros iguais no funil, e o Cubo recusa a lista
+// com repetidos. Fica o primeiro de cada. Vale para lista de IDs (`tagIds[0]`) e de objetos
+// (`members[0].userId`). `null` (ligação adiada ou tirada) não conta como repetido.
+export function semRepetidos(registro, refs) {
+  const listas = new Map() // caminho da lista (JSON das partes) → campo do objeto, ou null
+  for (const ref of refs || []) {
+    if (ref.token != null) continue
+    const partes = partesDoCaminho(ref.path)
+    if (typeof partes.at(-1) === 'number') listas.set(JSON.stringify(partes.slice(0, -1)), null)
+    else if (partes.length >= 2 && typeof partes.at(-2) === 'number') listas.set(JSON.stringify(partes.slice(0, -2)), partes.at(-1))
+  }
+  for (const [caminho, campo] of listas) {
+    const partes = JSON.parse(caminho)
+    const recipiente = partes.length > 1 ? pai(registro, partes) : registro
+    const lista = recipiente?.[partes.at(-1)]
+    if (!Array.isArray(lista)) continue
+    const vistos = new Set()
+    recipiente[partes.at(-1)] = lista.filter((elemento) => {
+      const valor = campo === null ? elemento : elemento?.[campo]
+      if (valor == null) return true
+      const chave = String(valor)
+      if (vistos.has(chave)) return false
+      vistos.add(chave)
+      return true
+    })
+  }
+  return registro
+}

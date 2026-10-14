@@ -28,7 +28,8 @@ function fecha(texto) {
   if (!ledger.perguntas.length) etapa(ledger, 'decisoes', 'feito', 'tudo decidido')
   else etapa(ledger, 'decisoes', 'andamento', `${ledger.perguntas.length} perguntas`)
   salvar(ledger)
-  console.log(`ok: ${texto}. ${ledger.perguntas.length ? `Faltam ${ledger.perguntas.length} perguntas.` : 'Nada mais a decidir.'}`)
+  const faltam = ledger.perguntas.length
+  console.log(`ok: ${texto}. ${faltam === 1 ? 'Falta 1 pergunta.' : faltam ? `Faltam ${faltam} perguntas.` : 'Nada mais a decidir.'}`)
 }
 
 if (comando === 'listar') {

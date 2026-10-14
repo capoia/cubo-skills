@@ -88,10 +88,14 @@ async function lerOrigem(kind) {
 function numerosSemRef(registro) {
   const texto = registro.systemPrompt
   if (typeof texto !== 'string') return []
-  const comRef = new Set((registro.refs || []).filter((ref) => ref.path === 'systemPrompt').map((ref) => String(ref.id)))
+  // Coberto é o número que tem um ref cujo trecho contém ESTE nome: o 27 do chip não cobre o 27 de
+  // um `move_deal_stage_31_27` escrito à mão (o Cubo só reconhece os números em ordem crescente).
+  const doPrompt = (registro.refs || []).filter((ref) => ref.path === 'systemPrompt' && ref.token)
   const soltos = new Set()
   for (const [nomeFerramenta] of texto.matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)*_\d+\b/g)) {
-    for (const [numero] of nomeFerramenta.matchAll(/(?<=_)\d{3,}(?=_|$)/g)) if (!comRef.has(numero)) soltos.add(`${numero} (em ${nomeFerramenta})`)
+    for (const [numero] of nomeFerramenta.matchAll(/(?<=_)\d+(?=_|$)/g)) {
+      if (!doPrompt.some((ref) => String(ref.id) === numero && ref.token.includes(nomeFerramenta))) soltos.add(`${numero} (em ${nomeFerramenta})`)
+    }
   }
   return [...soltos]
 }

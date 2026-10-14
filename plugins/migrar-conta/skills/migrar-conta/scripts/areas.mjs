@@ -33,7 +33,10 @@ export const AREAS = [
   // `users` traz só os ativos e não gera ref; quem vale é `members`, inclusive os desativados.
   // Nasce sem etapas: elas vêm na área seguinte e a ordem se acerta no fim (`stages-order`).
   { kind: 'pipe', rotulo: 'Funis', rota: '/api/pipes', escopo: 'pipes', remover: ['stages', 'users'], proposito: 'proposal' },
-  { kind: 'stage', rotulo: 'Estágios', rota: '/api/stages', escopo: 'stages', escopoTambem: 'pipes', nomeUnico: true, nome: (r) => `${r.pipeId}|${nome(r)}` },
+  {
+    kind: 'stage', rotulo: 'Estágios', rota: '/api/stages', escopo: 'stages', escopoTambem: 'pipes', nomeUnico: true,
+    // A leitura devolve `rottenDays: 0` (etapa antiga sem prazo), e a criação só aceita de 1 a 999 ou null.
+    preparar: (corpo) => (corpo.rottenDays === 0 ? { ...corpo, rottenDays: null } : corpo), nome: (r) => `${r.pipeId}|${nome(r)}` },
   {
     kind: 'oauth_credential', rotulo: 'Credenciais OAuth', rota: '/api/oauth-credentials', escopo: 'oauthCredentials',
     // Nasce `disconnected`: o client secret vem com `include=secrets`, mas o login é sempre na tela.

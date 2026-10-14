@@ -9,10 +9,10 @@
 //     volta na 2ª passada;
 //   - erro num item não para os outros; quem depende dele espera.
 import { createHash } from 'node:crypto'
-import { AREA, AREAS, KINDS_DE_DADO, KIND_ARQUIVO, KIND_CHAVE, KIND_PUBLIC_ID, KIND_USUARIO, corpoParaCriar } from './areas.mjs'
+import { AREA, AREAS, KINDS_DE_DADO, KIND_ARQUIVO, KIND_CHAVE, KIND_PUBLIC_ID, KIND_USUARIO, corpoParaCriar, rotuloDe } from './areas.mjs'
 import { aviso, carregar, chaveItem, etapa, mapear, noMapa, pendencia, proximoPasso, registrar, salvar } from './ledger.mjs'
 import { ErroApi, acesso, api, falha, lerJson, pasta, todos } from './lib.mjs'
-import { aplicarRefs, campoRaiz } from './refs.mjs'
+import { aplicarRefs, campoRaiz, semRepetidos } from './refs.mjs'
 
 const ledger = carregar()
 if (ledger.etapas.plano.status !== 'feito') falha('o plano ainda não foi feito. Rode antes: node "<scripts>/plano.mjs" --areas=…', 2)
@@ -184,9 +184,10 @@ async function processar(chave) {
   await copiarArquivos(registro.refs || [], item)
   const { decidir, esperando } = decisorPara(item)
   const trocado = aplicarRefs(base, registro.refs || [], decidir)
+  semRepetidos(trocado.registro, registro.refs)
   if (esperando.length) {
     item.status = 'aguardando'
-    item.erro = `espera ${esperando.join(', ')} ficar pronto`
+    item.erro = `espera ${[...new Set(esperando)].join(', ')} ficar pronto`
     return
   }
   if (trocado.faltando.length) {
@@ -226,7 +227,11 @@ async function processar(chave) {
       if (!escolha) {
         const id = `existente:${chave}`
         if (!ledger.perguntas.some((pergunta) => pergunta.id === id)) {
-          ledger.perguntas.push({ id, tipo: 'existente', chave, destinoId: par.id, texto: `${area.rotulo}: “${item.nome}” já existe na conta nova. Usar o que já existe, criar outro igual, ou pular?` })
+          // O nome do que vai ser criado (o domínio escolhido, não o antigo), e se o que existe é uma
+          // cópia que esta migração acabou de fazer de outro item da conta antiga com o mesmo nome.
+          const copia = Object.values(ledger.mapa[item.kind] || {}).some((id) => String(id) === String(par.id))
+          const texto = `${area.rotulo}: “${rotuloDe(corpo)}” já existe na conta nova${copia ? ' (é a cópia de outro item da conta antiga com o mesmo nome, criada agora pela migração)' : ''}. Usar o que já existe, criar outro igual, ou pular?`
+          ledger.perguntas.push({ id, tipo: 'existente', chave, destinoId: par.id, texto })
         }
         item.status = 'pendente'
         return
@@ -282,7 +287,8 @@ async function processar(chave) {
 async function segundaPassada() {
   const itens = Object.entries(ledger.itens).filter(([, item]) => item.status === 'criado' && item.segundaPassada?.length)
   if (!itens.length) {
-    etapa(ledger, 'segunda-passada', 'feito', 'nada a ligar')
+    // Numa nova rodada, não apaga o que a anterior ligou.
+    if (ledger.etapas['segunda-passada'].status !== 'feito') etapa(ledger, 'segunda-passada', 'feito', 'nada a ligar')
     return
   }
   etapa(ledger, 'segunda-passada', 'andamento')
@@ -292,6 +298,7 @@ async function segundaPassada() {
     const registro = registroDeOrigem(item.kind, item.origemId)
     const { decidir } = decisorPara(item)
     const trocado = aplicarRefs(registro, registro.refs || [], decidir)
+    semRepetidos(trocado.registro, registro.refs)
     if (trocado.adiados.length || trocado.faltando.length) {
       faltam++
       continue
@@ -397,7 +404,7 @@ for (const item of todosItens.filter((i) => i.status === 'erro' || i.status === 
   console.log(`  ${item.status === 'erro' ? '✘' : '⏳'} ${AREA[item.kind].rotulo} “${item.nome}”: ${item.erro}`)
 }
 if (ledger.perguntas.length) {
-  console.log(`\nApareceram ${ledger.perguntas.length} perguntas novas:`)
+  console.log(ledger.perguntas.length === 1 ? '\nApareceu 1 pergunta nova:' : `\nApareceram ${ledger.perguntas.length} perguntas novas:`)
   for (const pergunta of ledger.perguntas) console.log(`  [${pergunta.id}] ${pergunta.texto}`)
   console.log('Responda com o decidir.mjs e rode o aplicar de novo.')
   process.exit(3)

@@ -120,7 +120,7 @@ async function conferirConta(conta, kinds, linhas) {
     for (const kind of kinds) if (AREA[kind].modulo && !ativos.has(AREA[kind].modulo)) precisa.set(AREA[kind].modulo, AREA[kind].rotulo)
     if (precisa.size) {
       tudoCerto = false
-      for (const [modulo, area] of precisa) ruim(`a conta nova não tem o módulo “${NOME_MODULO[modulo] || modulo}” ligado, e ele é preciso para migrar ${area.toLowerCase()}. Ligue o módulo na conta nova (ou peça ao suporte do Cubo), ou tire essa parte da escolha.`)
+      for (const [modulo, area] of precisa) ruim(`a conta nova não tem o módulo “${NOME_MODULO[modulo] || modulo}” ligado, e ele é preciso para migrar “${area}”. Ligue o módulo na conta nova (ou peça ao suporte do Cubo), ou tire essa parte da escolha.`)
     } else if (kinds.some((kind) => AREA[kind].modulo)) ok('módulos necessários ligados na conta nova')
   }
 

@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'migrar-conta', 'skills', 'migrar-conta', 'scripts')
 const { AREAS } = await import(pathToFileURL(join(SCRIPTS, 'areas.mjs')).href)
-const { aplicarRefs, partesDoCaminho, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
+const { aplicarRefs, partesDoCaminho, semRepetidos, trocarTrechos } = await import(pathToFileURL(join(SCRIPTS, 'refs.mjs')).href)
 
 const PASTA = mkdtempSync(join(tmpdir(), 'cubo-migracao-'))
 const resultados = []
@@ -412,6 +412,21 @@ await caso('refs: caminho com ["…"], chaves e CSV que cruzam o mapa (12→40 e
   confere(JSON.stringify(r.registro.valores) === JSON.stringify({ 40: 'doze', 55: 'quarenta' }), `chaves: ${JSON.stringify(r.registro.valores)}`)
   confere(r.registro.tags === '40,55', `CSV: ${r.registro.tags}`)
   confere(r.registro.texto === '{{cf.deal.40}} e {{cf.deal.55}}', `texto: ${r.registro.texto}`)
+})
+
+await caso('refs: usuários que caem no mesmo da conta nova não repetem na lista (o Cubo recusa repetido)', async () => {
+  const registro = { members: [{ userId: 11, splitter: 1 }, { userId: 12, splitter: 2 }, { userId: 13, splitter: 1 }], tagIds: [6, 7, 6], alvos: [null, null] }
+  const refs = [
+    ...registro.members.map((_, i) => ({ path: `members[${i}].userId`, kind: 'user', id: 11 + i })),
+    ...registro.tagIds.map((id, i) => ({ path: `tagIds[${i}]`, kind: 'tag', id })),
+    { path: 'alvos[0]', kind: 'automation', id: 1 },
+    { path: 'alvos[1]', kind: 'automation', id: 2 },
+  ]
+  const r = aplicarRefs(registro, refs, (ref) => (ref.kind === 'user' ? { novo: 25 } : ref.kind === 'tag' ? { novo: ref.id + 100 } : { adiar: true }))
+  semRepetidos(r.registro, refs)
+  confere(JSON.stringify(r.registro.members) === JSON.stringify([{ userId: 25, splitter: 1 }]), `members: ${JSON.stringify(r.registro.members)}`)
+  confere(JSON.stringify(r.registro.tagIds) === JSON.stringify([106, 107]), `tagIds: ${JSON.stringify(r.registro.tagIds)}`)
+  confere(r.registro.alvos.length === 2, 'null adiado não é repetido')
 })
 
 // ---------------------------------------------------------------------------------------------
