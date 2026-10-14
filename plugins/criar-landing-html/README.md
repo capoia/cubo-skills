@@ -55,6 +55,9 @@ claude plugin install criar-landing-html@cubo
 
 e reinicia o Claude Code. O acesso ao Cubo (`.cubo.env`, na pasta de trabalho) continua valendo.
 
+A 3.0.1 lê os domínios com `perPage=500`: o Cubo passou a paginar `GET /api/domains`, e quando o
+padrão cair para 10 por página, a 3.0.0 deixa de enxergar quem tem mais de 10 domínios.
+
 A 2.0 muda o que a skill precisa (Node no lugar de `cwebp`/`python3`) e para de usar rotas do Cubo
 que não existem mais: **as versões 1.x falham ao publicar**.
 

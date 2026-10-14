@@ -86,7 +86,7 @@ Não existe rota própria: é o `status` no `PUT`.
 
 ⚠️ **A API não confere o domínio.** Ela deixa a página `active` num domínio que ainda está
 `validating` — e aí a página está "no ar" num endereço que não resolve. Antes de dizer que publicou,
-confira em `GET /api/domains` que o domínio está `active`, e abra o endereço público.
+confira em `GET /api/domains?perPage=500` que o domínio está `active`, e abra o endereço público.
 
 `suspended` é da cobrança: só sai quando o pagamento normaliza, e o `PUT` não muda.
 
@@ -146,8 +146,11 @@ passa por `checkStorageQuota` e registra o arquivo. Estourando, vem 422 com
 
 ### Listar
 
-`GET /api/domains` → cada um com `status`: `active` (serve página), `validating` (esperando o
+`GET /api/domains?perPage=500` → cada um com `status`: `active` (serve página), `validating` (esperando o
 CNAME), `deactivated`, `suspended`.
+
+A lista é paginada (`{ data, metadata }`): sem `perPage`, vem só a primeira página. Peça sempre com
+`perPage=500` (o teto); se `metadata.lastPage` passar de 1, leia as outras com `&page=2`…
 
 ### Cadastrar
 

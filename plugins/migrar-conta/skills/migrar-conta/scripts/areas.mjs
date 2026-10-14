@@ -1,0 +1,246 @@
+// Catálogo do que se migra. É o ÚNICO lugar com rota, escopo, ordem e regra de cada área: quando o
+// CRM mudar uma rota, muda aqui. A ordem do array é a ordem de criação na conta nova (quem não
+// depende de nada primeiro). Cada área tem um `kind`, o mesmo nome que o CRM usa nos `refs`.
+
+const nome = (registro) => String(registro.name ?? '').trim().toLowerCase()
+const motivo = (registro) => String(registro.reason ?? '').trim().toLowerCase()
+
+// O SDK do formulário na página (`<script src=".../sdk/form.js">`): o Cubo só aceita o SDK do
+// endereço da própria conta, então o endereço da conta antiga vira o da nova.
+const SDK = /https?:\/\/[^\s"'<>()]+?\/sdk\/form\.js/g
+const CAMPOS_DA_PAGINA = ['html', 'head', 'codeHead', 'codeBody']
+
+// A integração trouxe alguma chave? (só com `include=secrets`)
+const temSegredo = (r) => Boolean(r.token || r.apiKey || r.config?.webhook?.headers || r.config?.verdata?.password || r.config?.facebookCapi?.accessToken)
+
+// Segredo de intent: o Cubo só aceita nome em MAIÚSCULAS_COM_SUBLINHADO (e só troca `{{NOME}}` nesse
+// formato). Segredo gravado antes da regra sai como está e o POST recusa: vira o nome no formato, e o
+// `{{nome}}` da URL e dos cabeçalhos acompanha. Devolve { antigo: novo } só do que muda.
+const NOME_DE_SEGREDO = /^[A-Z][A-Z0-9_]*$/
+export function renomearSegredos(segredos) {
+  const nomes = Object.keys(segredos || {})
+  const usados = new Set(nomes.filter((n) => NOME_DE_SEGREDO.test(n)))
+  const trocas = {}
+  for (const antigo of nomes) {
+    if (NOME_DE_SEGREDO.test(antigo)) continue
+    let base = antigo.toUpperCase().replace(/[^A-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '')
+    if (!/^[A-Z]/.test(base)) base = `S_${base}`
+    let novo = base
+    for (let n = 2; usados.has(novo); n++) novo = `${base}_${n}`
+    usados.add(novo)
+    trocas[antigo] = novo
+  }
+  return trocas
+}
+const trocarPlaceholders = (texto, trocas) =>
+  typeof texto === 'string' ? texto.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (todo, nome) => (trocas[nome] ? `{{${trocas[nome]}}}` : todo)) : texto
+
+// Nome dos módulos do Cubo, para a conferência de acesso falar em língua de gente.
+export const NOME_MODULO = { 'ai-agents': 'Agentes de IA', automations: 'Automações', channels: 'Canais', integrations: 'Integrações', instagram: 'Instagram' }
+
+export const AREAS = [
+  { kind: 'tag', rotulo: 'Tags', rota: '/api/tags', escopo: 'tags' },
+  { kind: 'category', rotulo: 'Categorias', rota: '/api/categories', escopo: 'categories', nomeUnico: true },
+  { kind: 'lost_reason', rotulo: 'Motivos de perda', rota: '/api/lostreasons', escopo: 'lostReasons', escopoTambem: 'pipes', nome: motivo, campoNome: 'reason', nomeUnico: true },
+  { kind: 'resolution_reason', rotulo: 'Motivos de resolução', rota: '/api/resolution-reasons', escopo: 'resolutionReasons', nome: motivo, campoNome: 'reason', nomeUnico: true },
+  { kind: 'transfer_reason', rotulo: 'Motivos de transferência', rota: '/api/transfer-reasons', escopo: 'transferReasons', nome: motivo, campoNome: 'reason', nomeUnico: true },
+  { kind: 'pause_reason', rotulo: 'Motivos de pausa', rota: '/api/pause-reasons', escopo: 'pauseReasons', nome: motivo, campoNome: 'reason', nomeUnico: true },
+  { kind: 'department', rotulo: 'Departamentos', rota: '/api/departments', escopo: 'departments' },
+  {
+    kind: 'customfield', rotulo: 'Campos personalizados', rota: '/api/customfields', escopo: 'customfields', nome: (r) => `${r.context}|${nome(r)}`, nomeUnico: true,
+    // A conta tem no máximo um campo de cidade e um de estado (eles formam um par na tela), em qualquer contexto.
+    unicoNaConta: (r) => (['city', 'state'].includes(r.type) ? r.type : null),
+    // A leitura dá `options: [{ value }]`; a criação recebe a lista de textos.
+    preparar: (corpo) => (Array.isArray(corpo.options) ? { ...corpo, options: corpo.options.map((opcao) => (opcao && typeof opcao === 'object' ? opcao.value : opcao)) } : corpo),
+  },
+  { kind: 'product', rotulo: 'Produtos', rota: '/api/products', escopo: 'products', nomeUnico: true, proposito: 'product' },
+  // `users` traz só os ativos e não gera ref; quem vale é `members`, inclusive os desativados.
+  // Nasce sem etapas: elas vêm na área seguinte e a ordem se acerta no fim (`stages-order`).
+  { kind: 'pipe', rotulo: 'Funis', rota: '/api/pipes', escopo: 'pipes', remover: ['stages', 'users'], proposito: 'proposal' },
+  {
+    kind: 'stage', rotulo: 'Estágios', rota: '/api/stages', escopo: 'stages', escopoTambem: 'pipes', nomeUnico: true,
+    // A leitura devolve `rottenDays: 0` (etapa antiga sem prazo), e a criação só aceita de 1 a 999 ou null.
+    preparar: (corpo) => (corpo.rottenDays === 0 ? { ...corpo, rottenDays: null } : corpo), nome: (r) => `${r.pipeId}|${nome(r)}` },
+  {
+    kind: 'oauth_credential', rotulo: 'Credenciais OAuth', rota: '/api/oauth-credentials', escopo: 'oauthCredentials',
+    // Nasce `disconnected`: o client secret vem com `include=secrets`, mas o login é sempre na tela.
+    remover: ['status', 'lastError', 'lastRefreshAt', 'tokenExpiresAt', 'hasClientSecret', 'hasRefreshToken'], segredos: true,
+    pendencia: (r) => (r.clientSecret ? `Credencial OAuth “${r.name}”: clicar em Conectar e fazer o login (Configurações → Credenciais OAuth).` : `Credencial OAuth “${r.name}”: digitar o client secret e clicar em Conectar (Configurações → Credenciais OAuth).`),
+  },
+  {
+    kind: 'integration', rotulo: 'Integrações', rota: '/api/integrations', escopo: 'integrations',
+    // Nasce desligada. Chave de serviço de fora (Cal.com, OpenAI, webhook…) vem com `include=secrets`
+    // e funciona igual na conta nova; o que nasce de login (WhatsApp, Instagram, Google…) se reconecta.
+    remover: ['status'], segredos: true, modulo: 'integrations',
+    pendencia: (r) => {
+      // A senha do Verdata de cada usuário nunca sai, nem com `include=secrets`.
+      const verdata = r.type === 'verdata' && r.users?.length ? ` Digitar de novo a senha do Verdata de cada usuário (${r.users.length}).` : ''
+      if (temSegredo(r)) return `Integração “${r.name}” (${r.type}): a chave veio junto. Conferir e ligar (Configurações → Integrações).${verdata}`
+      const cabecalhos = r.config?.webhook?.headerNames?.length && !r.config.webhook.headers ? ` Preencher também os cabeçalhos do webhook (${r.config.webhook.headerNames.join(', ')}).` : ''
+      return `Integração “${r.name}” (${r.type}): reconectar e ligar na conta nova (Configurações → Integrações).${cabecalhos}${verdata}`
+    },
+  },
+  // MCP não se cria por API (nasce de login no navegador): só casa pelo nome com o que já existe.
+  { kind: 'mcp_connection', rotulo: 'Conexões MCP', rota: '/api/mcp-connections', escopo: 'mcpConnections', somenteCasar: true, acoes: ['read'] },
+  {
+    kind: 'template', rotulo: 'Templates', rota: '/api/templates', escopo: 'templates',
+    remover: ['integrations', 'metaStatus'], proposito: 'template',
+    // Nome de template segue a regra da Meta (minúsculas e sublinhado), e não se repete na conta.
+    nomeUnico: true, sufixo: (n) => (n === 1 ? '_migrado' : `_migrado_${n}`),
+    pendencia: (r) => (r.type === 'whatsapp' ? `Template “${r.name}”: depois de conectar o WhatsApp, sincronizar com a Meta (Templates → sincronizar).` : null),
+  },
+  { kind: 'activity_trail', rotulo: 'Trilhas de atividade', rota: '/api/activity-trails', escopo: 'activityTrails' },
+  { kind: 'knowledge_base_folder', rotulo: 'Pastas da base de conhecimento', rota: '/api/knowledge-base-folders', escopo: 'knowledgeBases', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true },
+  {
+    kind: 'knowledge_base', rotulo: 'Bases de conhecimento', rota: '/api/knowledge-bases', escopo: 'knowledgeBases',
+    remover: ['indexStatus', 'indexedChunksCount', 'lastIndexedAt', 'tokenEstimate'], textoGrande: ['content'],
+    detalhe: true, // o `content` só vem no detalhe
+    nome: (r) => `${r.folderId ?? ''}|${nome(r)}`, nomeUnico: true,
+    // A conta antiga guarda até 500 mil caracteres; a criação recusa acima de ~200 mil.
+    limites: { content: 200_000 },
+  },
+  {
+    kind: 'custom_intent', rotulo: 'Intents de agente', rota: '/api/intents', escopo: 'intents',
+    remover: ['promptChip', 'headerNames', 'hasSecrets', 'usesOauthCredential'], nascer: { enabled: false }, segredos: true,
+    // O nome da intent é um identificador (minúsculas e sublinhado), único na conta.
+    nomeUnico: true, sufixo: (n) => (n === 1 ? '_migrado' : `_migrado_${n}`),
+    preparar: (corpo) => {
+      const trocas = renomearSegredos(corpo.secrets)
+      if (!Object.keys(trocas).length) return corpo
+      const secrets = Object.fromEntries(Object.entries(corpo.secrets).map(([nome, valor]) => [trocas[nome] || nome, valor]))
+      const headers = corpo.headers && Object.fromEntries(Object.entries(corpo.headers).map(([nome, valor]) => [nome, trocarPlaceholders(valor, trocas)]))
+      return { ...corpo, secrets, ...(headers ? { headers } : {}), url: trocarPlaceholders(corpo.url, trocas) }
+    },
+    pendencia: (r) => {
+      const faltam = (r.hasSecrets && !r.secrets) || (r.headerNames?.length && !r.headers)
+      const trocas = Object.entries(renomearSegredos(r.secrets))
+      const renomeados = trocas.length
+        ? ` O Cubo só aceita nome de segredo em MAIÚSCULAS, e na conta antiga ${trocas.length > 1 ? 'estes não eram usados' : 'este não era usado'} por isso: ${trocas.map(([de, para]) => `“${de}” virou ${para}`).join(', ')}. Testar a intent antes de ligar.`
+        : ''
+      return faltam
+        ? `Intent “${r.name}”: preencher os segredos e cabeçalhos${r.headerNames?.length ? ` (${r.headerNames.join(', ')})` : ''} e ligar (Agentes → Intents).${renomeados}`
+        : `Intent “${r.name}”: revisar e ligar (Agentes → Intents).${renomeados}`
+    },
+  },
+  { kind: 'agent_folder', rotulo: 'Pastas de agentes', rota: '/api/agent-folders', escopo: 'agents', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true, modulo: 'ai-agents' },
+  { kind: 'agent', rotulo: 'Agentes de IA', rota: '/api/agents', escopo: 'agents', textoGrande: ['systemPrompt'], nomeUnico: true, modulo: 'ai-agents' },
+  {
+    kind: 'domain', rotulo: 'Domínios', rota: '/api/domains', escopo: 'domains',
+    nome: (r) => String(r.domain ?? '').trim().toLowerCase(),
+    so: ['domain'], acoes: ['read', 'create'], // domínio não tem edição
+  },
+  { kind: 'form', rotulo: 'Formulários', rota: '/api/forms', escopo: 'forms', remover: ['publicId'], proposito: 'landing', nomeUnico: true },
+  {
+    kind: 'landing', rotulo: 'Landing pages', rota: '/api/landings', escopo: 'landings',
+    nome: (r) => `${r.domainId}|${String(r.url ?? '').replace(/^\/+/, '') || '/'}`,
+    remover: ['publicUrl', 'domain'], nascer: { status: 'deactivated' }, textoGrande: ['html'],
+    // Domínio + endereço não se repetem: a cópia de uma página que já existe vai para "/promo-migrado".
+    nomeUnico: true, campoNome: 'url', sufixo: (n) => (n === 1 ? '-migrado' : `-migrado-${n}`),
+    detalhe: true, // a listagem não traz o construtor e recusa `include=refs`
+    proposito: 'landing',
+    preparar: (corpo, { destino }) => {
+      const pronto = { ...corpo }
+      for (const campo of CAMPOS_DA_PAGINA) if (typeof pronto[campo] === 'string' && destino) pronto[campo] = pronto[campo].replace(SDK, `${destino}/sdk/form.js`)
+      return pronto
+    },
+    pendencia: (r) => `Landing “${r.title}”: revisar e ativar (Landing pages → ${r.title} → ativar).`,
+  },
+  { kind: 'automation_folder', rotulo: 'Pastas de automações', rota: '/api/automation-folders', escopo: 'automations', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true, modulo: 'automations' },
+  {
+    kind: 'automation', rotulo: 'Automações', rota: '/api/automations', escopo: 'automations',
+    // Nasce rascunho e desligada; se estava publicada na conta antiga, a skill publica no fim (a
+    // versão publicada não liga nada sozinha) e a pessoa só liga.
+    remover: ['publishedVersion', 'hasUnpublishedChanges', 'status'], proposito: 'automation', segredos: true, modulo: 'automations',
+    detalhe: true, // a listagem é leve (sem `flowData`) e recusa `include=refs`
+    pendencia: (r) => {
+      const partes = []
+      // Sem `include=secrets`, o nó HTTP sai só com o nome dos cabeçalhos: a pessoa digita de novo.
+      const http = (r.flowData?.nodes || []).filter((no) => no?.data?.headerNames?.length && !no.data.headers)
+      for (const no of http) partes.push(`preencher os cabeçalhos do nó HTTP “${no.data.label || no.id}” (${no.data.headerNames.join(', ')})`)
+      if (r.status === 'active') partes.push('estava ligada na conta antiga: revisar e ligar')
+      return partes.length ? `Automação “${r.name}”: ${partes.join('; ')}.` : null
+    },
+  },
+  {
+    kind: 'channel', rotulo: 'Canais', rota: '/api/channels', escopo: 'channels',
+    remover: ['connectionState', 'connectedPhone', 'connectionError', 'connectionChangedAt', 'lastEventAt', 'suspendedAt', 'status'],
+    aguardaConexao: true, // a integração do canal precisa estar conectada na conta nova
+    modulo: 'channels',
+    pendencia: (r) => `Canal “${r.name}”: nasce desligado na conta nova. Conferir e ligar (Canais → ${r.name}).`,
+  },
+  // Por último: o `link` precisa já ter os IDs da conta nova.
+  { kind: 'filter', rotulo: 'Filtros', rota: '/api/filters', escopo: 'filters', nome: (r) => `${r.userId}|${r.context}|${nome(r)}`, nomeUnico: true },
+]
+
+for (const area of AREAS) {
+  area.nome ||= nome
+  area.campoNome ||= 'name'
+  area.acoes ||= ['read', 'create', 'update']
+  area.proposito ||= 'automation' // a pasta que aceita mais tipos de arquivo
+  area.sufixo ||= (n) => (n === 1 ? ' (migrado)' : ` (migrado ${n})`) // "criar outro" onde o nome é único
+}
+
+export const AREA = Object.fromEntries(AREAS.map((area, indice) => [area.kind, { ...area, ordem: indice }]))
+for (const area of AREAS) Object.assign(area, AREA[area.kind])
+
+// Kinds que aparecem em refs mas não são áreas que se criam.
+export const KIND_USUARIO = 'user'
+export const KIND_ARQUIVO = 'file'
+export const KIND_PUBLIC_ID = 'form_public_id'
+export const KIND_CHAVE = 'apikey'
+export const KINDS_DE_DADO = new Set(['deal', 'people', 'organization'])
+
+// O que a pessoa escolhe (a lista dela, em pt-BR) e as áreas que cada escolha leva.
+export const GRUPOS = [
+  { chave: 'funis', rotulo: 'Funis', areas: ['pipe', 'stage'] }, // funil nasce sem etapas: elas vêm junto
+  { chave: 'estagios', rotulo: 'Estágios', areas: ['stage'] },
+  { chave: 'filtros', rotulo: 'Filtros', areas: ['filter'] },
+  { chave: 'categorias', rotulo: 'Categorias', areas: ['category'] },
+  { chave: 'produtos', rotulo: 'Produtos', areas: ['product'] },
+  { chave: 'landing-pages', rotulo: 'Landing pages', areas: ['landing'] },
+  { chave: 'formularios', rotulo: 'Formulários', areas: ['form'] },
+  { chave: 'templates', rotulo: 'Templates', areas: ['template'] },
+  { chave: 'campos', rotulo: 'Campos personalizados', areas: ['customfield'] },
+  { chave: 'departamentos', rotulo: 'Departamentos', areas: ['department'] },
+  { chave: 'credenciais-oauth', rotulo: 'Credenciais OAuth', areas: ['oauth_credential'] },
+  { chave: 'tags', rotulo: 'Tags', areas: ['tag'] },
+  { chave: 'motivos', rotulo: 'Motivos (perda, resolução, transferência e pausa)', areas: ['lost_reason', 'resolution_reason', 'transfer_reason', 'pause_reason'] },
+  { chave: 'canais', rotulo: 'Canais', areas: ['channel'] },
+  { chave: 'trilhas', rotulo: 'Trilhas de atividade', areas: ['activity_trail'] },
+  { chave: 'automacoes', rotulo: 'Automações', areas: ['automation_folder', 'automation'] },
+  { chave: 'agentes', rotulo: 'Agentes de IA', areas: ['agent_folder', 'agent'] },
+  { chave: 'base-de-conhecimento', rotulo: 'Base de conhecimento', areas: ['knowledge_base_folder', 'knowledge_base'] },
+  { chave: 'mcps', rotulo: 'MCPs', areas: ['mcp_connection'] },
+  { chave: 'integracoes', rotulo: 'Integrações', areas: ['integration'] },
+]
+
+export function areasDaEscolha(texto) {
+  const chaves = String(texto || '').split(',').map((parte) => parte.trim()).filter(Boolean)
+  if (chaves.includes('todos')) return AREAS.map((area) => area.kind)
+  const kinds = new Set()
+  for (const chave of chaves) {
+    const grupo = GRUPOS.find((g) => g.chave === chave)
+    if (!grupo) throw new Error(`não conheço "${chave}". Opções: todos, ${GRUPOS.map((g) => g.chave).join(', ')}`)
+    grupo.areas.forEach((kind) => kinds.add(kind))
+  }
+  return AREAS.map((area) => area.kind).filter((kind) => kinds.has(kind))
+}
+
+const CAMPOS_DE_SISTEMA = ['id', 'companyId', 'createdAt', 'updatedAt', 'deletedAt', 'deletedBy', 'createdBy', 'updatedBy', 'createdByUserId', 'refs']
+
+// Corpo para criar na conta nova: o registro lido, sem campos de sistema, contadores e o que a área
+// manda tirar, mais o estado de nascimento seguro (desligado).
+export function corpoParaCriar(area, registro, contexto = {}) {
+  const corpo = {}
+  for (const [campo, valor] of Object.entries(registro)) {
+    if (CAMPOS_DE_SISTEMA.includes(campo) || /Count$/.test(campo)) continue
+    if (area.remover?.includes(campo)) continue
+    if (area.so && !area.so.includes(campo)) continue
+    corpo[campo] = valor
+  }
+  const pronto = area.preparar ? area.preparar(corpo, contexto) : corpo
+  return { ...pronto, ...(area.nascer || {}) }
+}
+
+// Como chamar um item para a pessoa: cada área usa um campo diferente para o nome.
+export const rotuloDe = (registro) => String(registro.name ?? registro.title ?? registro.reason ?? registro.domain ?? `nº ${registro.id}`)
