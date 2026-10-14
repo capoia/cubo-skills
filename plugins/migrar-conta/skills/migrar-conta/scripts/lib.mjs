@@ -149,7 +149,10 @@ export async function api(conta, metodo, rota, dado, config = exigeAcesso(conta)
       esperasPorTeto++
       const cabecalho = resposta.headers.get('retry-after')
       const pedido = cabecalho === null ? NaN : Number(cabecalho)
-      await espera(Number.isFinite(pedido) && pedido >= 0 ? pedido * 1000 : Math.min(60_000, 5000 * esperasPorTeto))
+      const ms = Number.isFinite(pedido) && pedido >= 0 ? pedido * 1000 : Math.min(60_000, 5000 * esperasPorTeto)
+      // Sem aviso, um minuto parado parece travamento.
+      if (ms >= 2000) console.log(`  (a ${NOME_CONTA[conta]} pediu uma pausa: o Cubo aceita um número de alterações por minuto. Esperando ${Math.round(ms / 1000)} s e sigo sozinho…)`)
+      await espera(ms)
       tentativa--
       continue
     }

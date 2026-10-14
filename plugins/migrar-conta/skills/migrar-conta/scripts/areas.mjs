@@ -47,7 +47,9 @@ export const AREAS = [
   { kind: 'pause_reason', rotulo: 'Motivos de pausa', rota: '/api/pause-reasons', escopo: 'pauseReasons', nome: motivo, campoNome: 'reason', nomeUnico: true },
   { kind: 'department', rotulo: 'Departamentos', rota: '/api/departments', escopo: 'departments' },
   {
-    kind: 'customfield', rotulo: 'Campos personalizados', rota: '/api/customfields', escopo: 'customfields', nome: (r) => `${r.context}|${nome(r)}`,
+    kind: 'customfield', rotulo: 'Campos personalizados', rota: '/api/customfields', escopo: 'customfields', nome: (r) => `${r.context}|${nome(r)}`, nomeUnico: true,
+    // A conta tem no máximo um campo de cidade e um de estado (eles formam um par na tela), em qualquer contexto.
+    unicoNaConta: (r) => (['city', 'state'].includes(r.type) ? r.type : null),
     // A leitura dá `options: [{ value }]`; a criação recebe a lista de textos.
     preparar: (corpo) => (Array.isArray(corpo.options) ? { ...corpo, options: corpo.options.map((opcao) => (opcao && typeof opcao === 'object' ? opcao.value : opcao)) } : corpo),
   },
@@ -83,6 +85,8 @@ export const AREAS = [
   {
     kind: 'template', rotulo: 'Templates', rota: '/api/templates', escopo: 'templates',
     remover: ['integrations', 'metaStatus'], proposito: 'template',
+    // Nome de template segue a regra da Meta (minúsculas e sublinhado), e não se repete na conta.
+    nomeUnico: true, sufixo: (n) => (n === 1 ? '_migrado' : `_migrado_${n}`),
     pendencia: (r) => (r.type === 'whatsapp' ? `Template “${r.name}”: depois de conectar o WhatsApp, sincronizar com a Meta (Templates → sincronizar).` : null),
   },
   { kind: 'activity_trail', rotulo: 'Trilhas de atividade', rota: '/api/activity-trails', escopo: 'activityTrails' },
@@ -125,11 +129,13 @@ export const AREAS = [
     nome: (r) => String(r.domain ?? '').trim().toLowerCase(),
     so: ['domain'], acoes: ['read', 'create'], // domínio não tem edição
   },
-  { kind: 'form', rotulo: 'Formulários', rota: '/api/forms', escopo: 'forms', remover: ['publicId'], proposito: 'landing' },
+  { kind: 'form', rotulo: 'Formulários', rota: '/api/forms', escopo: 'forms', remover: ['publicId'], proposito: 'landing', nomeUnico: true },
   {
     kind: 'landing', rotulo: 'Landing pages', rota: '/api/landings', escopo: 'landings',
     nome: (r) => `${r.domainId}|${String(r.url ?? '').replace(/^\/+/, '') || '/'}`,
     remover: ['publicUrl', 'domain'], nascer: { status: 'deactivated' }, textoGrande: ['html'],
+    // Domínio + endereço não se repetem: a cópia de uma página que já existe vai para "/promo-migrado".
+    nomeUnico: true, campoNome: 'url', sufixo: (n) => (n === 1 ? '-migrado' : `-migrado-${n}`),
     detalhe: true, // a listagem não traz o construtor e recusa `include=refs`
     proposito: 'landing',
     preparar: (corpo, { destino }) => {

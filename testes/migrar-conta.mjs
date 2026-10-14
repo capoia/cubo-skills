@@ -126,7 +126,7 @@ const usuarios = {
   1: [{ id: 10, name: 'Ana', email: 'ana@clinica.com' }, { id: 11, name: 'Bia', email: 'bia@clinica.com' }],
   2: [{ id: 20, name: 'Ana', email: 'ANA@clinica.com' }, { id: 21, name: 'Dona', email: 'dona@nova.com' }],
 }
-const falhas = { agentUmaVez: false, cortarPrompt: false, tetoUmaVez: false }
+const falhas = { agentUmaVez: false, cortarPrompt: false, tetoUmaVez: false, canalConectado: false, cotaCheia: false, formUmaVez: false }
 const chamadas = { importUrl: 0, publicadas: [], ordens: [] }
 
 function semear(companyId, kind, registros) {
@@ -134,7 +134,7 @@ function semear(companyId, kind, registros) {
 }
 
 semear(1, 'tag', [{ id: 101, name: 'VIP', color: '#ff0000' }, { id: 102, name: 'Frio', color: '#0000ff' }])
-semear(1, 'customfield', [{ id: 201, name: 'Origem', context: 'deal', type: 'select', options: [{ value: 'site' }, { value: 'indicação' }] }, { id: 202, name: 'CPF', context: 'people', type: 'text' }])
+semear(1, 'customfield', [{ id: 201, name: 'Origem', context: 'deal', type: 'select', options: [{ value: 'site' }, { value: 'indicação' }] }, { id: 202, name: 'CPF', context: 'people', type: 'text' }, { id: 203, name: 'Cidade', context: 'deal', type: 'city' }])
 semear(1, 'pipe', [{ id: 301, name: 'Vendas', primaryField: '201', members: [{ userId: 10, splitter: 1, active: true }, { userId: 11, splitter: 1, active: false }], users: [{ id: 10, name: 'Ana' }], stages: [] }])
 semear(1, 'stage', [
   { id: 401, name: 'Novo', pipeId: 301, orderNr: 2, customfieldIds: [201] },
@@ -187,14 +187,17 @@ semear(1, 'automation', [
     },
   },
 ])
-semear(1, 'form', [{ id: 801, name: 'Contato', publicId: 'frm_abc', settings: { destination: { pipeId: 301, stageId: 401 } }, fields: [{ id: 201, label: 'Origem' }, { id: 'name', label: 'Nome' }] }])
+semear(1, 'form', [{ id: 801, name: 'Contato', publicId: 'frm_abc', settings: { destination: { pipeId: 301, stageId: 401 } }, fields: [{ id: 201, label: 'Origem' }, { id: 203, label: 'Cidade' }, { id: 'name', label: 'Nome' }] }])
 semear(1, 'domain', [{ id: 901, domain: 'lp.clinica.com', status: 'active' }])
 semear(1, 'landing', [{ id: 951, title: 'Promo', url: 'promo', domainId: 901, status: 'active', html: '<img src="https://cdn.test/companies/1/landings/a.png"><div id="f"></div><script src="https://antiga.cubo.test/sdk/form.js"></script><script>new Form({ form: \'frm_abc\', target: \'#f\' })</script><script>var props = {"i5vfz9":{"pipe":"301","keycubo":"sk_velha_da_antiga"}}</script>' }])
-semear(1, 'integration', [{ id: 1001, name: 'WhatsApp oficial', type: 'whatsapp_business' }])
-semear(1, 'channel', [{ id: 1101, name: 'WhatsApp', integrationId: 1001, defaultAgentId: 601 }])
+semear(1, 'integration', [{ id: 1001, name: 'WhatsApp oficial', type: 'whatsapp_business' }, { id: 1002, name: 'OpenAI', type: 'openai' }])
+// O 1102 é dado antigo: canal ligado a uma integração que não é de canal (existe no CRM de verdade).
+semear(1, 'channel', [{ id: 1101, name: 'WhatsApp', integrationId: 1001, defaultAgentId: 601 }, { id: 1102, name: 'Canal velho', integrationId: 1002 }])
 semear(1, 'filter', [{ id: 1301, name: 'Meus novos', context: 'deal', userId: 11, pipeId: 301, link: 'pipe=301&stage=401&peoples=5' }])
 semear(2, 'tag', [{ id: 2101, name: 'vip', color: '#00ff00' }])
 semear(2, 'category', [{ id: 2501, name: 'consultas', status: 'active' }])
+// A conta nova já tem o campo de cidade (só pode haver um), com outro nome e em outro contexto.
+semear(2, 'customfield', [{ id: 2601, name: 'Município', context: 'people', type: 'city' }])
 semear(2, 'mcp_connection', [{ id: 2201, name: 'Stripe', type: 'stripe' }])
 
 const lista = (companyId, kind) => (banco[companyId][kind] ||= [])
@@ -259,6 +262,8 @@ const servidor = createServer((pedido, resposta) => {
     }
     if (recurso === 'files' && id === 'import-url') {
       chamadas.importUrl++
+      // Como o CRM: para chave de API, a cota cheia é 422 com `code` (e não o 413 da tela).
+      if (falhas.cotaCheia) return responde(resposta, 422, { code: 'E_STORAGE_QUOTA_EXCEEDED', errors: [{ message: 'Armazenamento esgotado.' }] })
       if (!['product', 'proposal', 'landing', 'template', 'automation'].includes(corpo.purpose)) return responde(resposta, 422, { errors: [{ message: 'purpose inválido' }] })
       if (/[^\x00-\x7f]/.test(corpo.url)) return responde(resposta, 422, { errors: [{ message: 'o nome do arquivo tem acento ou caractere especial' }] })
       const nova = corpo.url.replace(/companies\/\d+\//, `companies/${companyId}/${corpo.purpose}/`)
@@ -319,11 +324,17 @@ const servidor = createServer((pedido, resposta) => {
     }
 
     if (pedido.method === 'POST' || pedido.method === 'PUT') {
+      if (kind === 'form' && pedido.method === 'POST' && falhas.formUmaVez) {
+        falhas.formUmaVez = false
+        return responde(resposta, 500, { errors: [{ message: 'Erro interno' }] })
+      }
       if (kind === 'agent' && pedido.method === 'POST' && falhas.agentUmaVez) {
         falhas.agentUmaVez = false
         return responde(resposta, 500, { errors: [{ message: 'Erro interno' }] })
       }
-      if (kind === 'channel') return responde(resposta, 422, { errors: [{ message: 'A integração do canal não está conectada' }] })
+      if (kind === 'channel' && (!falhas.canalConectado || lista(companyId, 'integration').find((i) => i.id === corpo.integrationId)?.type !== 'whatsapp_business')) {
+        return responde(resposta, 422, { errors: [{ message: 'A integração não é de canal ou o número não está conectado nela nesta conta (conecte na tela antes).' }] })
+      }
       if (kind === 'domain' && Object.values(banco).some((b) => (b.domain || []).some((d) => d.domain === corpo.domain))) {
         return responde(resposta, 422, { errors: [{ message: 'Este domínio já está em uso.' }] })
       }
@@ -333,6 +344,9 @@ const servidor = createServer((pedido, resposta) => {
         // Arquivo do storage: só vale o da própria conta (o CRM confere a posse).
         if (ref.kind === 'file' && !String(ref.id).includes(`/companies/${companyId}/`)) return responde(resposta, 422, { errors: [{ message: `arquivo de outra conta: ${ref.id}` }] })
         if (!existe(companyId, ref.kind, ref.id)) return responde(resposta, 422, { errors: [{ message: `${ref.kind} ${ref.id} não pertence a esta conta (${ref.path})` }] })
+      }
+      if (kind === 'landing' && pedido.method === 'POST' && lista(companyId, 'landing').some((x) => x.domainId === corpo.domainId && x.url === corpo.url)) {
+        return responde(resposta, 422, { errors: [{ message: 'Já existe uma landing page ou formulário com este domínio e URL' }] })
       }
       if (kind === 'landing' && /antiga\.cubo\.test\/sdk/.test(corpo.html || '')) return responde(resposta, 422, { errors: [{ message: 'o SDK tem que vir do endereço desta conta' }] })
       // Como o CRM: o bodyparser apara as pontas de todo texto.
@@ -523,7 +537,7 @@ await caso('plano: puxa as dependências, casa usuário por e-mail e MCP por nom
   const ids = l.perguntas.map((p) => p.id).sort()
   confere(JSON.stringify(ids) === JSON.stringify(['chave-formulario', 'dominio:901', 'existente:category:1501', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
   confere(/PLANO \(nada foi alterado ainda\)/.test(r.saida) && /Automações: 2 itens/.test(r.saida), r.saida)
-  confere(Object.values(banco[2]).flat().length === 3, 'o plano não pode escrever na conta nova')
+  confere(Object.values(banco[2]).flat().length === 4, 'o plano não pode escrever na conta nova')
   confere(l.avisos.some((t) => /Boas-vindas.*alterações não publicadas/.test(t)), 'faltou o aviso do rascunho não publicado')
   confere(l.avisos.some((t) => /7777 \(em update_deal_field_7777\)/.test(t)) && !l.avisos.some((t) => /1201/.test(t)), `avisos: ${l.avisos.join(' | ')}`)
   confere(!l.pendencias.some((p) => /cabeçalhos do nó HTTP/.test(p.texto)), 'com os segredos lidos, o nó HTTP não precisa de tarefa manual')
@@ -562,16 +576,30 @@ await caso('decidir: grava as respostas e recusa usuário que não existe na con
   confere(/Nada mais a decidir/.test(r.saida), r.saida)
 })
 
+await caso('aplicar: cota de arquivos cheia na conta nova para tudo, em vez de criar sem as imagens', async () => {
+  falhas.cotaCheia = true
+  const r = await roda('aplicar.mjs')
+  falhas.cotaCheia = false
+  const l = ledger()
+  confere(r.codigo !== 0 && /espaço de arquivos da conta nova acabou/.test(r.saida), r.saida)
+  confere(!Object.values(l.mapa.file || {}).includes(null) && !l.pendencias.some((p) => /não pôde ser copiado/.test(p.texto)), `o arquivo não pode ser dado como perdido\n${JSON.stringify(l.mapa.file)}`)
+  confere(!doDestino('landing').length, 'a landing não pode nascer sem a imagem')
+})
+
 await caso('aplicar: cai no meio (erro 500 num agente) e quem depende dele espera', async () => {
   falhas.agentUmaVez = true
   falhas.tetoUmaVez = true
+  falhas.formUmaVez = true
   const r = await roda('aplicar.mjs')
   confere(!falhas.tetoUmaVez && !/429/.test(r.saida), `o 429 tinha que ser repetido sozinho\n${r.saida}`)
   confere(r.codigo === 4, `código ${r.codigo}\n${r.saida}`)
   const l = ledger()
   const comErro = Object.values(l.itens).filter((i) => i.status === 'erro').map((i) => i.kind)
   confere(comErro.includes('agent'), `erros: ${comErro}`)
+  // O formulário caiu, e a página espera por ele (pelo `frm_`), sem dar erro.
+  confere(l.itens['form:801'].status === 'erro' && l.itens['landing:951'].status === 'aguardando' && /formulários “Contato”/.test(l.itens['landing:951'].erro), JSON.stringify(l.itens['landing:951']))
   confere(l.itens['tag:101'].status === 'usado' && l.mapa.tag['101'] === 2101, 'a tag VIP tinha que ser a que já existia')
+  confere(l.itens['customfield:203'].status === 'usado' && l.mapa.customfield['203'] === 2601 && l.avisos.some((a) => /só pode haver um/.test(a)), `o campo de cidade usa o que já existe: ${JSON.stringify(l.itens['customfield:203'])}`)
 })
 
 await caso('aplicar: rodar de novo continua de onde parou, sem duplicar, e faz a 2ª passada', async () => {
@@ -582,6 +610,7 @@ await caso('aplicar: rodar de novo continua de onde parou, sem duplicar, e faz a
   confere(doDestino('agent').length === 2 && doDestino('automation').length === 2, `agentes ${doDestino('agent').length}, automações ${doDestino('automation').length}\n${r.saida}`)
   confere(l.itens['channel:1101'].status === 'aguardando', 'o canal sem integração conectada tem que aguardar')
   confere(l.pendencias.some((p) => /conecte a integração/.test(p.texto)), 'faltou a pendência do canal')
+  confere(l.itens['channel:1102'].status === 'pulado' && l.pendencias.some((p) => p.origemId === 1102 && /não é de canal/.test(p.texto)) && !l.pendencias.some((p) => p.origemId === 1102 && /conecte/.test(p.texto)), `canal preso à OpenAI: pula, e não manda conectar\n${JSON.stringify(l.pendencias.filter((p) => p.kind === 'channel'))}`)
   confere(r.codigo === 4 && /aguardando/.test(r.saida), r.saida)
 
   const automacao = doDestino('automation').find((a) => a.name === 'Boas-vindas')
@@ -643,13 +672,24 @@ await caso('conferir: acusa ID não trocado e texto cortado', async () => {
   await roda('conferir.mjs')
 })
 
+await caso('canal: depois de conectar, rodar de novo cria o canal e tira o "conecte"', async () => {
+  falhas.canalConectado = true
+  const r = await roda('aplicar.mjs')
+  const l = ledger()
+  confere(l.itens['channel:1101'].status === 'criado' && l.itens['channel:1102'].status === 'pulado', `${JSON.stringify(l.itens['channel:1101'])}\n${r.saida}`)
+  confere(doDestino('channel').find((c) => c.name === 'WhatsApp')?.defaultAgentId === l.mapa.agent['601'], 'o agente padrão do canal tem que ser o da conta nova')
+  confere(!l.pendencias.some((p) => /conecte a integração/.test(p.texto)), JSON.stringify(l.pendencias.filter((p) => p.kind === 'channel')))
+  const c = await roda('conferir.mjs')
+  confere(c.codigo === 0, c.saida)
+})
+
 await caso('relatório e status: HTML com conferência e tarefas, e o próximo passo', async () => {
   const r = await roda('relatorio.mjs', ['--nao-abrir'])
   const html = readFileSync(join(PASTA, 'migracao', 'relatorio.html'), 'utf8')
   confere(r.codigo === 0 && /Nenhum número da conta antiga sobrou/.test(html) && /Reconectar|reconectar/.test(html) && /Boas-vindas/.test(html), r.saida)
   confere(!/<script src/.test(html) && !/https?:\/\/(?!cdn\.test)/.test(html.replace(/http:\/\/127\.0\.0\.1:\d+/g, '')), 'o relatório não pode depender de nada de fora')
   const s = await roda('status.mjs')
-  confere(/Por área/.test(s.saida) && /Canais: 0\/1/.test(s.saida), s.saida)
+  confere(/Por área/.test(s.saida) && /Canais: 2\/2/.test(s.saida), s.saida)
 })
 
 await caso('2ª migração para a mesma conta: "criar outro" para todos dá nome livre também ao que só se descobre repetido no aplicar', async () => {
@@ -670,6 +710,27 @@ await caso('2ª migração para a mesma conta: "criar outro" para todos dá nome
   confere(filtros.includes('Meus novos') && filtros.includes('Meus novos (migrado)'), `${filtros}\n${r.saida}`)
   const categorias = doDestino('category').map((c) => c.name)
   confere(categorias.filter((n) => /^consultas \(migrado( \d)?\)$/i.test(n)).length === 2, `a 2ª cópia ganha “(migrado 2)”: ${categorias}`)
+})
+
+await caso('3ª migração: landing nova com o formulário que já existe leva o frm_ da conta nova', async () => {
+  const outra = join(PASTA, 'terceira')
+  mkdirSync(join(outra, 'migracao'), { recursive: true })
+  const acessoEm = (conta, chave) => writeFileSync(join(outra, 'migracao', `${conta}.env`), `CUBO_BASE_URL=${BASE}\nCUBO_API_KEY=${chave}\n`)
+  acessoEm('origem', 'sk_origem')
+  acessoEm('destino', 'sk_destino')
+  writeFileSync(join(outra, 'migracao', 'formulario.env'), 'CUBO_API_KEY=sk_form\n')
+  confere((await roda('conta.mjs', ['conferir', '--areas=landing-pages'], outra)).codigo === 0, 'acesso')
+  confere((await roda('plano.mjs', ['--areas=landing-pages'], outra)).codigo === 0, 'plano')
+  for (const args of [['usuario', '11', 'dono'], ['existente', 'landing:951', 'criar'], ['existentes-todos', 'usar'], ['dominio', '901', 'outro:lp.clinicanova.com']]) await roda('decidir.mjs', args, outra)
+  await roda('conta.mjs', ['conferir-formulario'], outra)
+  const antes = doDestino('landing').length
+  const r = await roda('aplicar.mjs', [], outra)
+  const l = JSON.parse(readFileSync(join(outra, 'migracao', 'ledger.json'), 'utf8'))
+  const formulario = doDestino('form').find((f) => f.id === l.mapa.form['801'])
+  const nova = doDestino('landing').find((x) => x.id === l.mapa.landing['951'])
+  confere(l.itens['form:801'].status === 'usado' && doDestino('landing').length === antes + 1, `${JSON.stringify(l.itens['form:801'])}\n${r.saida}`)
+  confere(nova?.html.includes(`form: '${formulario.publicId}'`), nova?.html)
+  confere(nova?.url === 'promo-migrado' && l.pendencias.some((p) => /a cópia ficou em \/promo-migrado/.test(p.texto)), `a cópia vai para outro endereço: ${nova?.url}`)
 })
 
 servidor.close()

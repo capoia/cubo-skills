@@ -30,6 +30,13 @@ const donoDaChave = ledger.destino?.usuario?.id
 const origem = {}
 const destino = {}
 
+function tirarPendencias(item, filtro = () => true) {
+  ledger.pendencias = ledger.pendencias.filter((p) => !(p.kind === item.kind && String(p.origemId) === String(item.origemId) && filtro(p)))
+}
+
+// As integrações que dão número a um canal (as mesmas que o Cubo aceita na criação do canal).
+const TIPOS_DE_CANAL = ['whatsapp_business', 'zapi', 'instagram']
+
 function registroDeOrigem(kind, id) {
   origem[kind] ||= lerJson(pasta('origem', `${kind}.json`), [])
   return origem[kind].find((registro) => String(registro.id) === String(id))
@@ -70,7 +77,9 @@ async function copiarArquivos(refs, item) {
       mapear(ledger, KIND_ARQUIVO, chave, resposta?.data?.url ?? resposta?.url)
     } catch (erro) {
       if (erro instanceof ErroApi && [401, 403, undefined].includes(erro.codigo)) throw erro
-      if (erro instanceof ErroApi && erro.codigo === 413) throw new ErroApi('o espaço de arquivos da conta nova acabou (413). Libere espaço ou aumente o plano da conta nova e rode o aplicar de novo.', { codigo: 413 })
+      // O Cubo responde 422 com `code: E_STORAGE_QUOTA_EXCEEDED` para chave de API (413 na tela). Parar
+      // é o certo: seguir criaria tudo sem as imagens.
+      if (erro instanceof ErroApi && (erro.codigo === 413 || erro.corpo?.code === 'E_STORAGE_QUOTA_EXCEEDED')) throw new ErroApi('o espaço de arquivos da conta nova acabou (Armazenamento esgotado). Libere espaço ou aumente o plano da conta nova e rode o aplicar de novo.', { codigo: 413 })
       // Nome com acento, extensão que a pasta não aceita, arquivo apagado, acima de 20 MB: sai da
       // cópia, porque o Cubo recusa arquivo de outra conta.
       mapear(ledger, KIND_ARQUIVO, chave, null)
@@ -108,7 +117,13 @@ function decisorPara(item) {
     }
     if (ref.kind === KIND_PUBLIC_ID) {
       const novo = noMapa(ledger, KIND_PUBLIC_ID, id)
-      return novo !== undefined ? { novo } : { faltando: true }
+      if (novo !== undefined) return { novo }
+      // O formulário ainda não ficou pronto (esperando campo, funil…): a página espera junto.
+      origem.form ||= lerJson(pasta('origem', 'form.json'), [])
+      const formulario = origem.form.find((registro) => String(registro.publicId) === id)
+      const alvo = formulario && ledger.itens[chaveItem('form', formulario.id)]
+      if (alvo && alvo.status !== 'pulado') esperando.push(`formulários “${alvo.nome}”`)
+      return { faltando: true }
     }
     if (ref.kind === 'mcp_connection') {
       const escolha = ledger.decisoes.mcp[id]
@@ -174,6 +189,7 @@ async function nomeLivre(area, corpo, item) {
     if (!(await procurarNoDestino(area, corpo))) break
   }
   item.nomeNoDestino = corpo[area.campoNome]
+  if (item.kind === 'landing') pendencia(ledger, `Landing “${item.nome}”: o endereço /${original.replace(/^\/+/, '')} já estava em uso na conta nova, então a cópia ficou em /${item.nomeNoDestino.replace(/^\/+/, '')}. Troque o endereço na landing, se precisar.`, { kind: item.kind, origemId: item.origemId })
 }
 
 async function processar(chave) {
@@ -222,6 +238,21 @@ async function processar(chave) {
     }
   }
 
+  // Tipo que só pode existir uma vez na conta (campo de cidade, de estado): se a conta nova já tem, é
+  // esse que vale, qualquer que tenha sido a escolha — criar outro o Cubo recusa.
+  const unico = area.unicoNaConta?.(corpo)
+  if (unico && item.status !== 'enviando') {
+    const jaTem = (await listaDoDestino(item.kind)).find((registro) => area.unicoNaConta(registro) === unico)
+    if (jaTem) {
+      tirarPendencias(item)
+      item.status = 'usado'
+      item.destinoId = jaTem.id
+      mapear(ledger, item.kind, item.origemId, jaTem.id)
+      aviso(ledger, `${area.rotulo} “${item.nome}”: a conta nova já tem um campo do tipo ${unico === 'city' ? 'cidade' : 'estado'} (“${rotuloDe(jaTem)}”), e só pode haver um. A cópia usa esse.`)
+      return
+    }
+  }
+
   // "Criar outro igual" onde o Cubo não aceita nome repetido: o novo ganha um sufixo. Antes da busca
   // abaixo, para a retomada achar o que nós criamos, e não o que já existia.
   if (ledger.decisoes.existentes[chave] === 'criar' || item.nomeNoDestino) await nomeLivre(area, corpo, item)
@@ -252,9 +283,13 @@ async function processar(chave) {
         return
       }
       if (escolha === 'usar') {
+        // O que já existia é da pessoa: as tarefas de "ligar, reconectar, revisar" não são desta cópia.
+        tirarPendencias(item)
         item.status = 'usado'
         item.destinoId = par.id
         mapear(ledger, item.kind, item.origemId, par.id)
+        // A landing em HTML aponta para o formulário pelo código público (`frm_…`), não pelo número.
+        if (item.kind === 'form' && registro.publicId && par.publicId) mapear(ledger, KIND_PUBLIC_ID, registro.publicId, par.publicId)
         return
       }
       if (escolha === 'pular') {
@@ -280,13 +315,25 @@ async function processar(chave) {
     if (item.kind === 'form' && registro.publicId) mapear(ledger, KIND_PUBLIC_ID, registro.publicId, resposta?.data?.publicId ?? resposta?.publicId)
     if (trocado.adiados.length) item.segundaPassada = [...new Set(trocado.adiados.map(campoRaiz))]
     delete item.erro
+    // O canal que esperava a conexão saiu: o "conecte e rode de novo" das rodadas anteriores já foi feito.
+    if (area.aguardaConexao) tirarPendencias(item, (p) => p.texto.includes(': conecte a integração dele'))
     destino[item.kind]?.push({ ...corpo, id: novoId })
   } catch (erro) {
     if (erro instanceof ErroApi && (erro.codigo === 401 || erro.codigo === 403 || erro.codigo === undefined)) throw erro
     if (area.aguardaConexao && erro.codigo === 422) {
+      // Canal preso, na conta antiga, a uma integração que não é de canal (dado antigo): conectar não
+      // resolve, e esperar seria para sempre.
+      const integracao = registroDeOrigem('integration', registro.integrationId)
+      if (integracao && !TIPOS_DE_CANAL.includes(integracao.type)) {
+        tirarPendencias(item)
+        item.status = 'pulado'
+        item.erro = `na conta antiga, está ligado à integração “${integracao.name}” (${integracao.type}), que não é de WhatsApp, Z-API nem Instagram`
+        pendencia(ledger, `Canal “${item.nome}”: não foi copiado, porque na conta antiga ele está ligado à integração “${integracao.name}” (${integracao.type}), que não é de canal. Se ele ainda for usado, crie o canal na tela da conta nova (Canais → novo).`, { kind: item.kind, origemId: item.origemId })
+        return
+      }
       item.status = 'aguardando'
       item.erro = erro.message
-      pendencia(ledger, `${area.rotulo} “${item.nome}”: conecte a integração dele na conta nova e rode a migração de novo para criar o canal.`, { kind: item.kind, origemId: item.origemId })
+      pendencia(ledger, `Canal “${item.nome}”: conecte a integração dele na conta nova e rode a migração de novo para criar o canal.`, { kind: item.kind, origemId: item.origemId })
       return
     }
     if (item.kind === 'domain' && erro.codigo === 422) {

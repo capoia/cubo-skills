@@ -26,7 +26,7 @@ Documentos irmãos:
 | Aplicar (troca de IDs, segunda passada, retomada) | `scripts/aplicar.mjs`, `refs.mjs` | ✅ 2026-10-13 |
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
 | Relatório HTML | `scripts/relatorio.mjs` | ✅ 2026-10-13 |
-| Fumaça no CI (22 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
+| Fumaça no CI (25 casos, Cubo de mentira com duas contas no formato real do CRM, leitura e escrita) | `testes/migrar-conta.mjs` | ✅ |
 | Ambiente local com contas semeadas (slot do `cubo-crm`) | slot 4, `../cubo-crm-wt-migrar-conta-teste` (porta 3337, banco `crm_wt4`) | ✅ 2026-10-14 — ver "Teste contra o CRM real" |
 | Evals (conta vazia, nome repetido, referência inexistente) | `evals/evals.json` | ⏳ depois do ambiente |
 
@@ -187,9 +187,47 @@ relatório manda apagar); nada no relatório nem no `LEDGER.md`.
 - a maioria das áreas não tem `DELETE` pela chave (integração, intent…): não dá para desfazer uma
   migração errada pela API. Não é pedido, é registro.
 
-**Ainda não testado de verdade:** canais (precisam de WhatsApp
-conectado), cópia de arquivo (`import-url` contra o MinIO do slot: a origem não tinha arquivo no
-storage), cota cheia (413) e o 429.
+### 3ª rodada: canais, arquivos, cota cheia e o 429
+
+Slot na `main` com o #445 (rottenDays null no GET, link do filtro sem repetido, W8 falso nos slots
+novos). Pastas `teste3` a `teste6`.
+
+- **Canais:** "conectado" o WhatsApp na conta nova copiando `whatsapp_business_config` da origem no
+  banco (é o que o login na Meta grava). Rodar o `aplicar` de novo criou os 3 canais com a integração
+  nova, o mesmo número e desligados. Os 2 canais da semeadura do CRM presos à integração da OpenAI
+  esperariam para sempre.
+- **Arquivos:** imagem de verdade no MinIO, no produto e no `<img>` da landing em HTML. As duas foram
+  copiadas para `companies/15/…`, que existem, e a página e o produto apontam para a cópia.
+- **Cota cheia:** `storage_used_bytes` lá em cima na conta nova. Para chave de API o CRM responde
+  **422** com `code: E_STORAGE_QUOTA_EXCEEDED` (413 só na tela), e a skill tratava como "arquivo
+  ruim": criava o produto sem a imagem. Agora para tudo, com o texto certo. Depois de liberar a cota,
+  a retomada copiou os arquivos.
+- **429:** teto do slot baixado para 30/min (só no slot, desfeito depois). Migração inteira: uma
+  pausa de 60 s, avisada na tela, e seguiu sozinha. Sem nenhum erro.
+
+**Defeitos achados e corrigidos:**
+
+- cota cheia (422 com `code`) não parava: produto criado sem imagem;
+- formulário reaproveitado ("usar") não mapeava o `frm_`: a landing em HTML falhava;
+- landing em HTML dava erro, em vez de esperar, quando o formulário dela ainda não estava pronto;
+- "criar outra" landing no mesmo domínio e endereço: 422. A cópia vai para `/endereco-migrado`, com
+  pendência dizendo o endereço;
+- formulário, campo personalizado e template também têm nome único (levantado no CRM: agora todas
+  as áreas com `.unique` no validador estão cobertas);
+- campo de cidade e de estado: só um por conta. A cópia usa o que já existe, com aviso;
+- canal preso a integração que não é de canal: agora é pulado, com pendência para criar na tela;
+- o "conecte e rode de novo" ficava depois que o canal saía; tarefa de item reaproveitado também;
+- o 429 esperava calado: agora avisa quanto tempo.
+
+**Para o CRM:**
+
+- `import-url` na **mesma conta** devolve o caminho de origem sem copiar (`tmp/…`), e o produto
+  recusa esse caminho ("importe antes por import-url"): não há como pôr um upload temporário no
+  produto pela API. Só se contorna importando de outra conta;
+- no slot, `POST /api/files/tmp` devolve o endereço do MinIO (`localhost:9000/dodofiles/…`), que o
+  `import-url` não reconhece (só o `SPACES_DOMAIN`). Em produção os dois batem: é só ambiente.
+
+**Fora do alcance de um slot:** conexão real com a Meta (simulada no banco) e o storage de produção.
 
 ## Pendências e ideias
 
@@ -252,3 +290,6 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
   `whoami` e falha no segredo). Segunda migração para a mesma conta achou e corrigiu: sufixo de nome
   único no que só se descobre repetido, intent com nome único, domínio já existente reaproveitado,
   etapa de decisões presa. Fumaça: 22 casos.
+- **2026-10-14** — Testado o que faltava no slot: canais (WhatsApp simulado no banco), arquivos de
+  verdade no MinIO, cota cheia e 429 (teto baixado no slot). Nove defeitos corrigidos, entre eles a
+  cota cheia que criava produto sem imagem e o `frm_` do formulário reaproveitado. Fumaça: 25 casos.
