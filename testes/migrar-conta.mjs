@@ -186,6 +186,8 @@ semear(1, 'automation', [
       edges: [],
     },
   },
+  // Outra automação com o mesmo nome da 701: na conta nova, cada uma vira a sua cópia, sem perguntar.
+  { id: 703, name: 'Boas-vindas', status: 'draft', publishedVersion: null, flowData: { nodes: [], edges: [] } },
 ])
 semear(1, 'form', [{ id: 801, name: 'Contato', publicId: 'frm_abc', settings: { destination: { pipeId: 301, stageId: 401 } }, fields: [{ id: 201, label: 'Origem' }, { id: 203, label: 'Cidade' }, { id: 'name', label: 'Nome' }] }])
 semear(1, 'domain', [{ id: 901, domain: 'lp.clinica.com', status: 'active' }])
@@ -464,8 +466,12 @@ await caso('conta: abrir cria o arquivo modelo com as instruções', async () =>
   const { saida } = await roda('conta.mjs', ['abrir', 'origem'])
   confere(/Abra este arquivo/.test(saida), 'no teste o editor não pode abrir')
   const texto = readFileSync(join(PASTA, 'migracao', 'origem.env'), 'utf8')
-  confere(/CUBO_BASE_URL=\n/.test(texto) && /Configurações → Chaves de API/.test(texto), texto)
-  confere(/origem\.env/.test(saida), saida)
+  confere(/^CUBO_API_KEY=$/m.test(texto) && !/^CUBO_BASE_URL/m.test(texto) && /Configurações → Chaves de API/.test(texto), `a pessoa só cola a chave\n${texto}`)
+  confere(/origem\.env/.test(saida) && /Cole a chave, salve e feche/.test(saida), saida)
+  // O endereço vem do cubo.json do plugin (o arquivo de acesso só o sobrescreve para teste).
+  const { enderecoPadrao } = await import(pathToFileURL(join(SCRIPTS, 'lib.mjs')).href)
+  const doPlugin = JSON.parse(readFileSync(join(SCRIPTS, '..', '..', '..', 'cubo.json'), 'utf8')).endereco
+  confere(/^https:\/\//.test(doPlugin) && enderecoPadrao() === doPlugin, `${enderecoPadrao()} × ${doPlugin}`)
 })
 
 await caso('conta: chave de usuário comum e chave sem permissão são barradas, com o que fazer', async () => {
@@ -536,7 +542,7 @@ await caso('plano: puxa as dependências, casa usuário por e-mail e MCP por nom
   confere(l.decisoes.mcp['1201'] === 2201, 'o MCP Stripe tinha que casar pelo nome')
   const ids = l.perguntas.map((p) => p.id).sort()
   confere(JSON.stringify(ids) === JSON.stringify(['chave-formulario', 'dominio:901', 'existente:category:1501', 'existente:tag:101', 'usuario:11']), `perguntas: ${ids}`)
-  confere(/PLANO \(nada foi alterado ainda\)/.test(r.saida) && /Automações: 2 itens/.test(r.saida), r.saida)
+  confere(/PLANO \(nada foi alterado ainda\)/.test(r.saida) && /Automações: 3 itens/.test(r.saida), r.saida)
   confere(Object.values(banco[2]).flat().length === 4, 'o plano não pode escrever na conta nova')
   confere(l.avisos.some((t) => /Boas-vindas.*alterações não publicadas/.test(t)), 'faltou o aviso do rascunho não publicado')
   confere(l.avisos.some((t) => /7777 \(em update_deal_field_7777\)/.test(t)) && !l.avisos.some((t) => /1201/.test(t)), `avisos: ${l.avisos.join(' | ')}`)
@@ -607,9 +613,12 @@ await caso('aplicar: rodar de novo continua de onde parou, sem duplicar, e faz a
   const r = await roda('aplicar.mjs')
   const l = ledger()
   confere(doDestino('pipe').length === antes, 'duplicou funil')
-  confere(doDestino('agent').length === 2 && doDestino('automation').length === 2, `agentes ${doDestino('agent').length}, automações ${doDestino('automation').length}\n${r.saida}`)
+  confere(!l.perguntas.length && doDestino('automation').filter((a) => a.name === 'Boas-vindas').length === 2 && l.avisos.some((a) => /mais de um item chamado “Boas-vindas”/.test(a)), `duas automações com o mesmo nome viram duas cópias, sem perguntar\n${JSON.stringify(l.perguntas)}`)
+  confere(l.etapas.aplicar.status === 'aguardando', `só canal esperando não é bloqueio: ${l.etapas.aplicar.status}`)
+  confere(doDestino('agent').length === 2 && doDestino('automation').length === 3, `agentes ${doDestino('agent').length}, automações ${doDestino('automation').length}\n${r.saida}`)
   confere(l.itens['channel:1101'].status === 'aguardando', 'o canal sem integração conectada tem que aguardar')
   confere(l.pendencias.some((p) => /conecte a integração/.test(p.texto)), 'faltou a pendência do canal')
+  confere(!l.pendencias.some((p) => p.origemId === 1101 && /nasce desligado/.test(p.texto)), 'canal que nem existe ainda não tem o que ligar: fica só o "conecte"')
   confere(l.itens['channel:1102'].status === 'pulado' && l.pendencias.some((p) => p.origemId === 1102 && /não é de canal/.test(p.texto)) && !l.pendencias.some((p) => p.origemId === 1102 && /conecte/.test(p.texto)), `canal preso à OpenAI: pula, e não manda conectar\n${JSON.stringify(l.pendencias.filter((p) => p.kind === 'channel'))}`)
   confere(r.codigo === 4 && /aguardando/.test(r.saida), r.saida)
 
@@ -678,7 +687,7 @@ await caso('canal: depois de conectar, rodar de novo cria o canal e tira o "cone
   const l = ledger()
   confere(l.itens['channel:1101'].status === 'criado' && l.itens['channel:1102'].status === 'pulado', `${JSON.stringify(l.itens['channel:1101'])}\n${r.saida}`)
   confere(doDestino('channel').find((c) => c.name === 'WhatsApp')?.defaultAgentId === l.mapa.agent['601'], 'o agente padrão do canal tem que ser o da conta nova')
-  confere(!l.pendencias.some((p) => /conecte a integração/.test(p.texto)), JSON.stringify(l.pendencias.filter((p) => p.kind === 'channel')))
+  confere(!l.pendencias.some((p) => /conecte a integração/.test(p.texto)) && l.pendencias.some((p) => p.origemId === 1101 && /nasce desligado/.test(p.texto)), JSON.stringify(l.pendencias.filter((p) => p.kind === 'channel')))
   const c = await roda('conferir.mjs')
   confere(c.codigo === 0, c.saida)
 })

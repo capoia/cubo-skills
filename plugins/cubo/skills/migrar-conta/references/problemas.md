@@ -11,13 +11,14 @@ O motivo vem escrito. Os mais comuns:
 - **"recusou os dados (422): … não pertence a esta conta"**: algum número não foi trocado. Isso não
   devia acontecer. Não tente contornar: mostre à pessoa e anote o item. Em geral, é tipo novo de
   configuração que o Cubo ainda não informa nos `refs`.
-- **"recusou os dados (422): já existe / nome em uso"**: com "criar outro igual", a skill já põe
-  " (migrado)" no fim do nome onde o Cubo exige nome único. Se ainda assim deu nome repetido (já
-  existe um "(migrado)" de uma rodada anterior), pergunte de novo, com "usar" ou "pular"
-  (`decidir.mjs existente <área:nº> usar`), e rode o `aplicar` de novo.
+- **"recusou os dados (422): já existe / nome em uso"**: com "criar outro igual", a skill já procura
+  um nome livre ("(migrado)", "(migrado 2)"…) onde sabe que o Cubo exige nome único. Se ainda assim
+  deu nome repetido, é uma regra do Cubo que a skill não conhece: mostre à pessoa, pergunte de novo
+  com "usar" ou "pular" (`decidir.mjs existente <área:nº> usar`), rode o `aplicar` de novo e anote
+  para corrigir a skill.
 - **"tem N caracteres, e a conta nova aceita até 200.000"**: base de conhecimento grande demais
   para a conta nova. A pessoa divide em duas na conta antiga, e o `plano` roda de novo.
-- **"espaço de arquivos da conta nova acabou (413)"**: o aplicar para. A pessoa libera espaço ou
+- **"espaço de arquivos da conta nova acabou"**: o aplicar para. A pessoa libera espaço ou
   aumenta o plano da conta nova, e roda de novo.
 - **"a conta nova pediu para ir mais devagar (429)"**: o Cubo aceita 240 escritas por minuto por
   chave. A skill já espera e repete sozinha; se mesmo assim aparecer, espere um minuto e rode de novo.

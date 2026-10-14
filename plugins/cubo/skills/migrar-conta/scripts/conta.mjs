@@ -13,14 +13,11 @@ const USO = `uso:
   conta.mjs conferir-formulario                 testa a chave do formulário das landing pages`
 
 const MODELO = (conta) => `# Acesso à ${NOME_CONTA[conta].toUpperCase()} do Cubo.
-# Preencha as duas linhas de baixo, salve o arquivo (Ctrl+S) e feche.
+# Cole a chave de API dessa conta na linha de baixo, salve o arquivo (Ctrl+S) e feche.
 #
-# 1) O endereço do Cubo dessa conta, como aparece no navegador. Exemplo: https://app.cubosuite.com.br
-CUBO_BASE_URL=
-#
-# 2) A chave de API dessa conta. No Cubo: Configurações → Chaves de API → Nova chave.
-#    ${conta === 'origem' ? 'Basta permissão de LEITURA em tudo: nada será alterado nesta conta.' : 'Precisa de permissão de LEITURA, CRIAÇÃO e EDIÇÃO.'}
-#    Cole a chave inteira depois do sinal de igual, sem espaço.
+# No Cubo: Configurações → Chaves de API → Nova chave.
+# ${conta === 'origem' ? 'Basta permissão de LEITURA em tudo: nada será alterado nesta conta.' : 'Precisa de permissão de LEITURA, CRIAÇÃO e EDIÇÃO.'}
+# Cole a chave inteira depois do sinal de igual, sem espaço.
 CUBO_API_KEY=
 `
 
@@ -45,7 +42,7 @@ function abrir(conta) {
   const abriu = abrirNoSistema(arquivo, { editor: true })
   console.log(abriu ? `Abri o arquivo de acesso da ${NOME_CONTA[conta]} no editor:` : `Abra este arquivo num editor de texto:`)
   console.log(`  ${arquivo}`)
-  console.log('Preencha o endereço e a chave, salve e feche. Depois é só avisar.')
+  console.log('Cole a chave, salve e feche. Depois é só avisar.')
 }
 
 // Escopos no formato do CRM: { pipes: ['read'], '*': ['*'] }. Chave antiga e chave de acesso total
@@ -92,7 +89,7 @@ async function conferirConta(conta, kinds, linhas) {
   }
   linhas.push(`${NOME_CONTA[conta]}:`)
   if (!config.existe) return ruim(`falta o arquivo de acesso. Para criar e abrir: node "<scripts>/conta.mjs" abrir ${conta}`)
-  if (!/^https?:\/\/[^\s/]+/.test(config.base)) return ruim(`o endereço (CUBO_BASE_URL) está vazio ou não começa com https://. Abra de novo: node "<scripts>/conta.mjs" abrir ${conta}`)
+  if (!/^https?:\/\/[^\s/]+/.test(config.base)) return ruim(`o endereço do Cubo está vazio ou não começa com https:// (vem do cubo.json do plugin, ou do CUBO_BASE_URL do arquivo ${config.arquivo}, se houver).`)
   if (!config.chave) return ruim(`a chave (CUBO_API_KEY) está vazia. Abra de novo: node "<scripts>/conta.mjs" abrir ${conta}`)
 
   let eu

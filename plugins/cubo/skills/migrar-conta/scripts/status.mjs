@@ -16,7 +16,7 @@ const COMANDO = {
   conferencia: 'conferir.mjs',
   relatorio: 'relatorio.mjs',
 }
-const ICONE = { pendente: '⬜', andamento: '⏳', feito: '✅', erro: '❌', bloqueado: '⛔' }
+const ICONE = { pendente: '⬜', andamento: '⏳', aguardando: '⏳', feito: '✅', erro: '❌', bloqueado: '⛔' }
 
 if (!existsSync(pasta('ledger.json'))) {
   console.log('Nenhuma migração começada nesta pasta.')

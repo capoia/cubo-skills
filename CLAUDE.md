@@ -58,6 +58,13 @@ caminho que saia de `plugins/cubo/`. E cada skill fica dentro da própria pasta:
 mesmo cliente da API, cada uma tem a sua cópia (o `SKILL.md` só conhece o próprio
 `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts`).
 
+A exceção é o **`plugins/cubo/cubo.json`**, a configuração que vale para todas as skills: hoje, o
+endereço do Cubo (`https://next.cubosuite.com.br`). A pessoa **não informa o endereço**: a chave de
+API é que diz a conta, e a API responde no mesmo endereço para todas (inclusive as de marca branca).
+Mudou o endereço, muda aqui e sobe a versão; quem forkar para outro Cubo troca este arquivo. Os
+scripts leem com `new URL('../../../cubo.json', import.meta.url)`. `CUBO_BASE_URL` no arquivo de
+acesso continua aceito, só para teste (um slot local) e para o SDK de conta de marca branca.
+
 Skill nova: `plugins/cubo/skills/<nome>/` com `SKILL.md`, `README.md`, referências e scripts; linha
 nas tabelas daqui e do `README.md` da raiz; versão do plugin `cubo` subida; e `caso` na fumaça. Skill que
 **escreve** na conta do cliente leva `disable-model-invocation: true` no frontmatter: só roda
@@ -158,7 +165,7 @@ prometer `status` e `css`, que a API recusa de propósito.
    Contra um CRM de verdade, um slot de worktree do `cubo-crm` (`pnpm dev:docker`) serve bem:
 
    ```bash
-   node plugins/cubo/skills/criar-landing-html/scripts/cubo.mjs configurar --base=http://127.0.0.1:3336 --chave=sk_...
+   node plugins/cubo/skills/criar-landing-html/scripts/cubo.mjs configurar --base=http://127.0.0.1:3336 --chave=sk_...   # --base só no teste
    node plugins/cubo/skills/criar-landing-html/scripts/cubo.mjs check
    ```
 

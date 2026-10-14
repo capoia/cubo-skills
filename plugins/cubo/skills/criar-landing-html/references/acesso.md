@@ -1,20 +1,17 @@
 # Acesso ao Cubo
 
-Duas coisas: **o endereço do CRM** e **uma chave de API**.
+Uma coisa só: **uma chave de API**. O endereço do Cubo já vem no plugin (o `cubo.json`): não pergunte.
 
-## O endereço do CRM
-
-É o domínio em que a pessoa entra no Cubo. Pode ser o padrão (`https://app.cubosuite.com.br`,
-`https://next.cubosuite.com.br`) ou um domínio próprio, se ela usa a plataforma por um parceiro
-(`https://crm.empresadela.com.br`). Peça para ela copiar da barra do navegador, sem o caminho.
-
-Não invente: em marca branca, cada parceiro tem o seu, e a chave só vale no dele.
+**Exceção, marca branca:** se a pessoa usa o Cubo por um parceiro, com endereço próprio
+(`https://crm.empresadela.com.br`), a API funciona pelo endereço do plugin, mas o SDK do formulário
+na página só é aceito do endereço do parceiro. Nesse caso, grave o endereço dela junto com a chave
+(`--base=`, abaixo) e use-o no `<script src="…/sdk/form.js">`.
 
 ## A chave de API
 
 Instrução para passar à pessoa, com estas palavras:
 
-> No Cubo, abra **Configurações → Chaves de API** (ou o endereço `<seu-crm>/apikeys`) e clique em
+> No Cubo, abra **Configurações → Chaves de API** e clique em
 > **Nova chave**. Dê um nome que você reconheça depois, por exemplo "Landing pages".
 >
 > Nas permissões, marque:
@@ -38,10 +35,16 @@ Num arquivo `.cubo.env` na pasta onde a pessoa está trabalhando. **Não** em va
 Claude Code ela não sobrevive de um comando para o outro, e o acesso sumiria no passo seguinte.
 
 ```bash
-node "<scripts>/cubo.mjs" configurar --base=https://crm.empresadela.com.br --chave=sk_...
+node "<scripts>/cubo.mjs" configurar --chave=sk_...
 ```
 
-O script grava o arquivo com permissão só do dono, tira a barra do fim do endereço e, se a pasta for
+Marca branca (só nesse caso):
+
+```bash
+node "<scripts>/cubo.mjs" configurar --chave=sk_... --base=https://crm.empresadela.com.br
+```
+
+O script grava o arquivo com permissão só do dono, tira a barra do fim do endereço (quando há) e, se a pasta for
 um repositório git, acrescenta `.cubo.env` ao `.gitignore`. Diga à pessoa que a chave ficou salva
 nesse arquivo, naquela pasta — é um segredo em disco, e ela precisa saber onde está.
 

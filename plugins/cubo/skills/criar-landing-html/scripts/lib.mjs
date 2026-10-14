@@ -32,15 +32,26 @@ export function configuracao() {
   return {
     arquivo,
     existe: existsSync(arquivo),
-    base: valor('CUBO_BASE_URL').replace(/\/+$/, ''),
+    base: (valor('CUBO_BASE_URL') || enderecoPadrao()).replace(/\/+$/, ''),
     chave: valor('CUBO_API_KEY'),
     pagespeed: valor('PAGESPEED_API_KEY'),
   }
 }
 
+// O endereço do Cubo é um só para todas as contas (a chave é que diz qual conta): vem do `cubo.json`
+// do plugin. `CUBO_BASE_URL` (no ambiente ou no `.cubo.env`) só serve para teste, num CRM local.
+export function enderecoPadrao() {
+  try {
+    const config = JSON.parse(readFileSync(new URL('../../../cubo.json', import.meta.url), 'utf8'))
+    return String(config.endereco || '')
+  } catch {
+    return ''
+  }
+}
+
 export function exigeAcesso(config = configuracao()) {
   if (config.base && config.chave) return config
-  falha(`faltam CUBO_BASE_URL e/ou CUBO_API_KEY.\nDefina no ambiente, ou crie ${config.arquivo} com as duas linhas.`, 2)
+  falha(`falta ${config.chave ? 'o endereço do Cubo (o cubo.json do plugin sumiu?)' : 'a CUBO_API_KEY'}.\nPara gravar a chave: node "<scripts>/cubo.mjs" configurar --chave=sk_…`, 2)
 }
 
 // `conteudo` em texto vai como JSON; FormData vai como multipart (o fetch põe o boundary).
