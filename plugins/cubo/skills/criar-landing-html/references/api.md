@@ -1,6 +1,7 @@
 # A API do Cubo
 
-Tudo em `https://SEU-CRM/api/...`, com o cabeçalho `X-API-Key: sk_...` e
+Tudo em `https://SEU-CRM/api/...` (`SEU-CRM` é a linha `CRM:` do `cubo.mjs check`: o endereço do
+`cubo.json` do plugin, ou o de marca branca gravado com `--base`), com o cabeçalho `X-API-Key: sk_...` e
 `Accept: application/json`. O `cubo.mjs` já põe os dois (troque `<scripts>` pelo caminho completo,
 como diz o `SKILL.md`):
 

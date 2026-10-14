@@ -97,7 +97,7 @@ if (config.base && config.chave) {
   registra('ok', `acesso ao Cubo: ${config.base} (chave ${config.chave.slice(0, 8)}…)`, 'confira as permissões com: cubo.mjs check')
 }
 if (!config.base || !config.chave) {
-  registra('FALTA', 'acesso ao Cubo', `falta ${[!config.base && 'CUBO_BASE_URL', !config.chave && 'CUBO_API_KEY'].filter(Boolean).join(' e ')} em ${config.arquivo}\nComo pegar: references/acesso.md`)
+  registra('FALTA', 'acesso ao Cubo', `falta ${!config.chave ? 'a chave de API (CUBO_API_KEY)' : 'o endereço do Cubo (o cubo.json do plugin sumiu?)'} em ${config.arquivo}\nComo pegar: references/acesso.md`)
 }
 
 if (config.pagespeed) {

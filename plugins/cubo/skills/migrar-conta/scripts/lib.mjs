@@ -48,6 +48,18 @@ export function gravarJson(arquivo, dado) {
 // ---------------------------------------------------------------------------------------------
 // Acesso às contas: migracao/origem.env e migracao/destino.env.
 
+// O endereço do Cubo é um só para todas as contas (a chave é que diz qual conta): ele vem do
+// `cubo.json` do plugin, e não da pessoa. `CUBO_BASE_URL` no arquivo de acesso só serve para teste
+// (um CRM local, por exemplo).
+export function enderecoPadrao() {
+  try {
+    const config = JSON.parse(readFileSync(new URL('../../../cubo.json', import.meta.url), 'utf8'))
+    return String(config.endereco || '').replace(/\/+$/, '')
+  } catch {
+    return ''
+  }
+}
+
 export function arquivoDaConta(conta) {
   return pasta(`${conta}.env`)
 }
@@ -61,7 +73,7 @@ export function acesso(conta) {
       if (achado) valores[achado[1]] = achado[2].replace(/^(['"])(.*)\1$/, '$2')
     }
   }
-  const base = valores.CUBO_BASE_URL || (conta === 'formulario' ? acesso('destino').base : '')
+  const base = valores.CUBO_BASE_URL || (conta === 'formulario' ? acesso('destino').base : enderecoPadrao())
   return {
     conta,
     arquivo,
@@ -75,7 +87,7 @@ export function exigeAcesso(conta) {
   const config = acesso(conta)
   if (config.base && config.chave) return config
   falha(
-    `falta o acesso à ${NOME_CONTA[conta]}: o arquivo ${config.arquivo} precisa das linhas CUBO_BASE_URL e CUBO_API_KEY.\n` +
+    `falta o acesso à ${NOME_CONTA[conta]}: o arquivo ${config.arquivo} precisa da linha CUBO_API_KEY.\n` +
       `  Para abrir o arquivo e colar: node "<scripts>/conta.mjs" abrir ${conta}`,
     2,
   )
@@ -135,7 +147,7 @@ export async function api(conta, metodo, rota, dado, config = exigeAcesso(conta)
         await espera(1000 * tentativa)
         continue
       }
-      throw new ErroApi(`não consegui falar com a ${NOME_CONTA[conta]} em ${config.base} (${erro.cause?.code || erro.message}). Confira o endereço no arquivo ${config.arquivo} e a internet.`, { rota, conta })
+      throw new ErroApi(`não consegui falar com a ${NOME_CONTA[conta]} em ${config.base} (${erro.cause?.code || erro.message}). Confira a internet; se ela estiver boa, o Cubo pode estar fora do ar.`, { rota, conta })
     }
     const texto = await resposta.text()
     let corpo

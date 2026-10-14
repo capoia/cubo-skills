@@ -269,14 +269,19 @@ async function processar(chave) {
     }
     if (par) {
       // Domínio não se repete no Cubo: o que a pessoa escolheu e já está na conta nova é o que vale.
+      // O que já existe é a cópia de OUTRO item da conta antiga, feita agora por esta migração (dois
+      // itens com o mesmo nome lá): são coisas diferentes, então este ganha a cópia própria.
+      const copiaDeOutro = Object.entries(ledger.mapa[item.kind] || {}).some(([origemId, id]) => String(id) === String(par.id) && String(origemId) !== String(item.origemId))
+      if (copiaDeOutro && !ledger.decisoes.existentes[chave]) {
+        ledger.decisoes.existentes[chave] = 'criar'
+        aviso(ledger, `${area.rotulo}: a conta antiga tem mais de um item chamado “${item.nome}”. Cada um virou uma cópia própria na conta nova.`)
+      }
       const escolha = item.kind === 'domain' ? 'usar' : ledger.decisoes.existentes[chave] || ledger.decisoes.existentesTodos
       if (!escolha) {
         const id = `existente:${chave}`
         if (!ledger.perguntas.some((pergunta) => pergunta.id === id)) {
-          // O nome do que vai ser criado (o domínio escolhido, não o antigo), e se o que existe é uma
-          // cópia que esta migração acabou de fazer de outro item da conta antiga com o mesmo nome.
-          const copia = Object.values(ledger.mapa[item.kind] || {}).some((id) => String(id) === String(par.id))
-          const texto = `${area.rotulo}: “${rotuloDe(corpo)}” já existe na conta nova${copia ? ' (é a cópia de outro item da conta antiga com o mesmo nome, criada agora pela migração)' : ''}. Usar o que já existe, criar outro igual, ou pular?`
+          // O nome do que vai ser criado (o domínio escolhido, não o antigo).
+          const texto = `${area.rotulo}: “${rotuloDe(corpo)}” já existe na conta nova. Usar o que já existe, criar outro igual, ou pular?`
           ledger.perguntas.push({ id, tipo: 'existente', chave, destinoId: par.id, texto })
         }
         item.status = 'pendente'
@@ -316,7 +321,10 @@ async function processar(chave) {
     if (trocado.adiados.length) item.segundaPassada = [...new Set(trocado.adiados.map(campoRaiz))]
     delete item.erro
     // O canal que esperava a conexão saiu: o "conecte e rode de novo" das rodadas anteriores já foi feito.
-    if (area.aguardaConexao) tirarPendencias(item, (p) => p.texto.includes(': conecte a integração dele'))
+    if (area.aguardaConexao) {
+      tirarPendencias(item, (p) => p.texto.includes(': conecte a integração dele'))
+      pendencia(ledger, area.pendencia?.(registro), { kind: item.kind, origemId: item.origemId })
+    }
     destino[item.kind]?.push({ ...corpo, id: novoId })
   } catch (erro) {
     if (erro instanceof ErroApi && (erro.codigo === 401 || erro.codigo === 403 || erro.codigo === undefined)) throw erro
@@ -333,6 +341,8 @@ async function processar(chave) {
       }
       item.status = 'aguardando'
       item.erro = erro.message
+      // Enquanto o canal não existe, "conferir e ligar" não tem o que ligar: fica só o "conecte".
+      tirarPendencias(item, (p) => !p.texto.includes(': conecte a integração dele'))
       pendencia(ledger, `Canal “${item.nome}”: conecte a integração dele na conta nova e rode a migração de novo para criar o canal.`, { kind: item.kind, origemId: item.origemId })
       return
     }
@@ -459,7 +469,9 @@ const todosItens = Object.values(ledger.itens)
 const conta = (status) => todosItens.filter((item) => item.status === status).length
 const resumo = `${conta('criado')} criados, ${conta('usado')} já existiam (usados), ${conta('pulado')} pulados, ${conta('aguardando')} aguardando, ${conta('erro')} com erro`
 const terminou = !ledger.perguntas.length && !conta('erro') && !conta('aguardando') && !conta('pendente') && !conta('enviando')
-etapa(ledger, 'aplicar', terminou ? 'feito' : 'bloqueado', resumo)
+// Só itens esperando a pessoa (conectar um canal): não é bloqueio, a migração segue e o relatório lista.
+const soAguardando = !terminou && !ledger.perguntas.length && !conta('erro') && !conta('pendente') && !conta('enviando')
+etapa(ledger, 'aplicar', terminou ? 'feito' : soAguardando ? 'aguardando' : 'bloqueado', resumo)
 registrar(ledger, `Aplicar: ${resumo}`)
 salvar(ledger)
 

@@ -15,7 +15,7 @@ export const ETAPAS = [
   { chave: 'relatorio', titulo: 'Relatório' },
 ]
 
-const ICONE = { pendente: '⬜', andamento: '⏳', feito: '✅', erro: '❌', bloqueado: '⛔' }
+const ICONE = { pendente: '⬜', andamento: '⏳', aguardando: '⏳', feito: '✅', erro: '❌', bloqueado: '⛔' }
 
 export function novoLedger() {
   return {
@@ -94,13 +94,19 @@ export function contagem(ledger) {
 
 // Próximo passo, em linguagem de gente, para o Claude repassar e para quem abrir o LEDGER.md.
 export function proximoPasso(ledger) {
+  let esperando = null
   for (const { chave, titulo } of ETAPAS) {
     const { status, detalhe } = ledger.etapas[chave]
     if (status === 'feito') continue
+    // Itens esperando a pessoa (um canal sem WhatsApp conectado) não seguram as etapas seguintes.
+    if (status === 'aguardando') {
+      esperando = detalhe
+      continue
+    }
     if (status === 'bloqueado' || status === 'erro') return `${titulo}: ${detalhe || status}`
     return titulo
   }
-  return 'Migração concluída.'
+  return esperando ? `Migração concluída, com itens esperando você (ver o relatório): ${esperando}` : 'Migração concluída.'
 }
 
 function paraLer(ledger) {

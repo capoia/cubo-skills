@@ -10,7 +10,7 @@ import { acesso, detalhe, falha, todos } from './lib.mjs'
 import { ler } from './refs.mjs'
 
 const ledger = carregar()
-if (!['feito', 'bloqueado'].includes(ledger.etapas.aplicar.status)) falha('ainda não há o que conferir: rode o aplicar antes.', 2)
+if (!['feito', 'aguardando', 'bloqueado'].includes(ledger.etapas.aplicar.status)) falha('ainda não há o que conferir: rode o aplicar antes.', 2)
 
 etapa(ledger, 'conferencia', 'andamento')
 salvar(ledger)

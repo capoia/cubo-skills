@@ -60,6 +60,9 @@ e reinicia o Claude Code. Quem ainda está na 2.x (plugin `cubo-landing`) troca 
 `claude plugin uninstall cubo-landing@cubo`. O acesso ao Cubo (`.cubo.env`, na pasta de trabalho)
 continua valendo.
 
+A 4.1 não pergunta mais o endereço do Cubo: ele vem no plugin, e a pessoa só passa a chave. Quem
+usa o Cubo por um parceiro (marca branca) ainda grava o endereço dele, para o formulário da página.
+
 A 3.0.1 lê os domínios com `perPage=500`: o Cubo passou a paginar `GET /api/domains`, e quando o
 padrão cair para 10 por página, a 3.0.0 deixa de enxergar quem tem mais de 10 domínios.
 

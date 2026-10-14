@@ -9,7 +9,7 @@ const [comando, caminho, dado] = process.argv.slice(2)
 const config = configuracao()
 
 const USO = `uso:
-  cubo.mjs configurar --base=https://… --chave=sk_… [--pagespeed=…]
+  cubo.mjs configurar --chave=sk_… [--pagespeed=…] [--base=https://…]
   cubo.mjs check
   cubo.mjs destino <funil> [etapa]   confere se o funil recebe leads (etapa e usuário ativo)
   cubo.mjs get    <caminho>
@@ -19,8 +19,8 @@ const USO = `uso:
   cubo.mjs upload <caminho> <arquivo>
 
 acesso (no ambiente, ou num arquivo .cubo.env na pasta de trabalho):
-  CUBO_BASE_URL   https://crm-do-cliente.com.br
   CUBO_API_KEY    sk_...
+  CUBO_BASE_URL   só para outro endereço que não o do cubo.json do plugin (teste, marca branca)
   CUBO_CONFIG     outro arquivo no lugar do .cubo.env`
 
 function corpo(entrada) {
@@ -47,7 +47,7 @@ async function imprime(metodo, rota, conteudo) {
 function configurar() {
   const { opcoes } = argumentos(process.argv.slice(3))
   const novos = { CUBO_BASE_URL: opcoes.base, CUBO_API_KEY: opcoes.chave, PAGESPEED_API_KEY: opcoes.pagespeed }
-  if (!Object.values(novos).some(Boolean)) falha('informe ao menos um: --base=https://… --chave=sk_… --pagespeed=…', 2)
+  if (!Object.values(novos).some(Boolean)) falha('informe ao menos um: --chave=sk_… --pagespeed=… --base=https://…', 2)
 
   const linhas = existsSync(config.arquivo) ? readFileSync(config.arquivo, 'utf8').split(/\r?\n/).filter(Boolean) : []
   for (const [nome, valor] of Object.entries(novos)) {

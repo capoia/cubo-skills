@@ -24,8 +24,7 @@ comum, o Cubo esconde parte da configuração (por exemplo, os funis de que ele 
 >
 > `! node "<scripts>/conta.mjs" abrir origem`
 >
-> Vai abrir um arquivo no bloco de notas. Cole o endereço do seu Cubo (o que aparece no navegador,
-> ex.: `https://app.cubosuite.com.br`) na linha `CUBO_BASE_URL=` e a chave na linha `CUBO_API_KEY=`.
+> Vai abrir um arquivo no bloco de notas. Cole a chave na linha `CUBO_API_KEY=`.
 > Salve (Ctrl+S), feche e me avise.
 
 Para a conta nova é o mesmo caminho, com duas diferenças. A chave precisa de permissão de
@@ -78,8 +77,8 @@ Cubo (ou no arquivo, com o mesmo comando `abrir`). Depois confira de novo.
 
 - **"recusou a chave (401)"**: a chave foi colada pela metade, com espaço, ou foi apagada. Abra o
   arquivo de novo e cole outra vez.
-- **"não consegui falar com …"**: o endereço está errado. Ele tem que ser o do navegador, começando
-  com `https://`, sem nada depois do domínio.
+- **"não consegui falar com …"**: a internet caiu, ou o Cubo está fora do ar. O endereço vem do
+  plugin (`cubo.json`), não da pessoa: se o problema for ele, a correção é no plugin.
 - **"não conhece GET /api/whoami (404)"**: o Cubo dessa conta ainda não tem a versão com as rotas da
   migração. Não há o que a pessoa possa fazer; avise que precisa atualizar o Cubo.
 - **A pessoa colou a chave no chat**: não repita a chave e não grave por ela. Peça para colar no

@@ -227,6 +227,13 @@ novos). Pastas `teste3` a `teste6`.
 - no slot, `POST /api/files/tmp` devolve o endereço do MinIO (`localhost:9000/dodofiles/…`), que o
   `import-url` não reconhece (só o `SPACES_DOMAIN`). Em produção os dois batem: é só ambiente.
 
+**Pedido para o CRM (endereço fixo, 4.1):** a skill passou a usar um endereço só (o do `cubo.json`),
+porque a chave de API não depende do host. Mas o SDK do formulário na página só é aceito dos
+endereços públicos **da conta** (`CompanyPublicHostsAction`): numa conta de marca branca, não é o
+`next.cubosuite.com.br`. Hoje a migração troca o host do SDK pelo endereço fixo, o que serve para
+as contas da plataforma. Para marca branca, o `whoami` precisaria devolver
+`company.publicHosts` (o primeiro, o de uso), e a skill usaria esse.
+
 **Fora do alcance de um slot:** conexão real com a Meta (simulada no banco) e o storage de produção.
 
 ## Pendências e ideias
@@ -293,3 +300,9 @@ Códigos de saída: 0 ok · 1 parou (acesso, rede, conferência com problema) ·
 - **2026-10-14** — Testado o que faltava no slot: canais (WhatsApp simulado no banco), arquivos de
   verdade no MinIO, cota cheia e 429 (teto baixado no slot). Nove defeitos corrigidos, entre eles a
   cota cheia que criava produto sem imagem e o `frm_` do formulário reaproveitado. Fumaça: 25 casos.
+- **2026-10-14** — Teste na mão pelo Wellington, com a skill instalada (`/cubo:migrar-conta`, conta
+  "Teste Pagante" → "Franquia Nova"): 57 criados, conferência limpa. Daí a 4.1: o endereço do Cubo
+  sai do arquivo de acesso e vai para o `plugins/cubo/cubo.json` (a pessoa só cola a chave);
+  tarefa de canal sem repetição; "aguardando" (⏳) em vez de bloqueado quando só falta a pessoa
+  conectar um canal; dois itens de mesmo nome na conta antiga viram duas cópias sem perguntar;
+  referências com a lista de nomes únicos atualizada.
