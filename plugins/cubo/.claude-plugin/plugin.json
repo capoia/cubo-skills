@@ -1,0 +1,21 @@
+{
+  "name": "cubo",
+  "version": "4.0.0",
+  "description": "Skills do Cubo Suite: criar landing page em HTML no Cubo (/cubo:criar-landing-html) e copiar a configuração de uma conta para outra (/cubo:migrar-conta). Windows, macOS e Linux, só com Node.",
+  "author": {
+    "name": "Cubo Suite"
+  },
+  "homepage": "https://github.com/capoia/cubo-skills",
+  "repository": "https://github.com/capoia/cubo-skills",
+  "license": "UNLICENSED",
+  "keywords": [
+    "cubo",
+    "crm",
+    "landing page",
+    "formulário",
+    "seo",
+    "pagespeed",
+    "migração",
+    "copiar conta"
+  ]
+}

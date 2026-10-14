@@ -25,35 +25,40 @@ qualquer pergunta.
 
 ## Instalar
 
-No Claude Code:
+A skill vem no plugin `cubo`, junto com as outras do Cubo:
 
 ```
 /plugin marketplace add capoia/cubo-skills
-/plugin install criar-landing-html@cubo
+/plugin install cubo@cubo-skills
 ```
+
+e reinicie o Claude Code.
 
 ## Atualizar
 
 Quem instalou uma versão anterior **não recebe as novas sozinho**. No terminal:
 
 ```
-claude plugin marketplace update cubo
-claude plugin update criar-landing-html@cubo
+claude plugin marketplace update cubo-skills
+claude plugin update cubo@cubo-skills
 ```
 
 e **reinicie o Claude Code** — a versão nova só vale depois disso.
 
-A 3.0 troca de nome: o plugin era `cubo-landing` e virou `criar-landing-html`, e o repositório
-virou `capoia/cubo-skills`. O `update` não acha o nome novo; quem tem a 2.x roda uma vez:
+A 4.0 junta as skills do Cubo num plugin só: o plugin `criar-landing-html` virou a skill
+`/cubo:criar-landing-html` do plugin `cubo`, e o marketplace passou de `cubo` para `cubo-skills`. O
+`update` não acha o nome novo; quem tem a 3.x roda uma vez:
 
 ```
-claude plugin uninstall cubo-landing@cubo
+claude plugin uninstall criar-landing-html@cubo
 claude plugin marketplace remove cubo
 claude plugin marketplace add capoia/cubo-skills
-claude plugin install criar-landing-html@cubo
+claude plugin install cubo@cubo-skills
 ```
 
-e reinicia o Claude Code. O acesso ao Cubo (`.cubo.env`, na pasta de trabalho) continua valendo.
+e reinicia o Claude Code. Quem ainda está na 2.x (plugin `cubo-landing`) troca a primeira linha por
+`claude plugin uninstall cubo-landing@cubo`. O acesso ao Cubo (`.cubo.env`, na pasta de trabalho)
+continua valendo.
 
 A 3.0.1 lê os domínios com `perPage=500`: o Cubo passou a paginar `GET /api/domains`, e quando o
 padrão cair para 10 por página, a 3.0.0 deixa de enxergar quem tem mais de 10 domínios.
@@ -67,7 +72,7 @@ Depois de instalada, basta pedir:
 
 > cria uma landing page pra captar leads do curso de inglês — o site da escola é escoladeingles.com.br
 
-Ou chamar direto: `/criar-landing-html:criar-landing-html`.
+Ou chamar direto: `/cubo:criar-landing-html`.
 
 A skill vai:
 
@@ -114,8 +119,7 @@ As regras de conversão citam a pesquisa de onde vêm, em `references/conversao.
 ## Estrutura
 
 ```
-.claude-plugin/       plugin.json
-skills/criar-landing-html/
+plugins/cubo/skills/criar-landing-html/
   SKILL.md            o fluxo
   references/         requisitos, acesso, dossiê, marca, questionário, estruturas, conversão,
                       rascunho, design, acabamento, movimento, riqueza, crítica, html, formulário, api,
@@ -124,7 +128,7 @@ skills/criar-landing-html/
                       de Anúncios da Meta), imagem, video, icone (Lucide), previa, teste-final
                       (lead de teste pela página publicada), entrega (checklist final), backup
                       e pagespeed
-../../testes/fumaca.mjs  teste dos scripts, que o CI roda em Windows, macOS e Linux
+testes/fumaca.mjs   teste dos scripts, que o CI roda em Windows, macOS e Linux
 ```
 
 Os arquivos de `references/` são lidos sob demanda: o `SKILL.md` fica curto e o detalhe só entra no

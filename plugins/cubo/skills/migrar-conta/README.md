@@ -18,7 +18,7 @@ sobrou.
 | O quê | Como conseguir |
 | --- | --- |
 | **Node.js 20.9 ou mais novo** | Windows: `winget install OpenJS.NodeJS.LTS` no PowerShell (ou o instalador LTS de https://nodejs.org). macOS: instalador LTS de https://nodejs.org. Depois, **feche e abra o Claude Code**. |
-| **Chave de API da conta antiga** | no Cubo da conta antiga, com um administrador: **Configurações → Chaves de API**. Leitura, e **"Segredos"** para trazer as chaves dos serviços de fora (marcada à parte: não vem no acesso total). |
+| **Chave de API da conta antiga** | no Cubo da conta antiga, com um administrador: **Configurações → Chaves de API**, com o campo **"Usuário"** preenchido com um administrador. Leitura, e **"Segredos"** para trazer as chaves dos serviços de fora (marcada à parte: não vem no acesso total). |
 | **Chave de API da conta nova** | no Cubo da conta nova, com um administrador: leitura, criação e edição, e "Arquivos: criação" (para copiar as imagens). |
 | **Chave do formulário** (só se houver landing page do construtor com formulário) | no Cubo da conta nova: uma chave separada, só com "Negócios: criação" e "Negócios: edição". Ela fica escrita na página. |
 
@@ -26,17 +26,21 @@ Não há mais nada para instalar.
 
 ## Instalar
 
+A skill vem no plugin `cubo`, junto com as outras do Cubo:
+
 ```
 /plugin marketplace add capoia/cubo-skills
-/plugin install migrar-conta@cubo
+/plugin install cubo@cubo-skills
 ```
+
+e reinicie o Claude Code.
 
 ## Usar
 
 Abra o Claude Code numa pasta vazia (é onde a migração guarda o andamento) e digite:
 
 ```
-/migrar-conta
+/cubo:migrar-conta
 ```
 
 A skill **só roda quando chamada assim**: ela escreve numa conta, então o Claude nunca dispara
@@ -57,7 +61,7 @@ Ela vai:
 6. conferir tudo na conta nova;
 7. abrir um relatório com o que foi feito e a lista do que você precisa fazer à mão.
 
-Se algo cair no meio, é só chamar `/migrar-conta` de novo na mesma pasta: ela continua de onde parou
+Se algo cair no meio, é só chamar `/cubo:migrar-conta` de novo na mesma pasta: ela continua de onde parou
 e não cria nada duas vezes.
 
 ## O que não dá para copiar

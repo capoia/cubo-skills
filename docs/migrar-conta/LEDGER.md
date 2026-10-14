@@ -8,7 +8,7 @@ Documentos irmãos:
 
 - [`API-NECESSARIA.md`](API-NECESSARIA.md): o briefing que foi para o `cubo-crm` (rotas, `refs`, mapa
   de referências). É o contrato entre a skill e o CRM.
-- `plugins/migrar-conta/`: a skill.
+- `plugins/cubo/skills/migrar-conta/`: a skill.
 - `testes/migrar-conta.mjs`: a fumaça da skill, contra um Cubo de mentira que segue o briefing.
 
 ## Situação
@@ -21,7 +21,7 @@ Documentos irmãos:
 | **Segredos** no CRM (B7: `secrets:read`, `?include=secrets`) | `capoia/cubo-crm` #444 | ✅ 2026-10-14, testado no slot |
 | Escrita da skill ajustada ao CRM real | `aplicar.mjs`, `areas.mjs`, `conta.mjs`, `lib.mjs` | ✅ 2026-10-14 |
 | Leitura da skill ajustada ao CRM real | `lib.mjs`, `conta.mjs`, `plano.mjs`, `refs.mjs`, `areas.mjs` | ✅ 2026-10-13 |
-| Esqueleto do plugin, ledger de execução, acesso às duas contas | `plugins/migrar-conta`, `conta.mjs`, `ledger.mjs` | ✅ 2026-10-13 |
+| Esqueleto do plugin, ledger de execução, acesso às duas contas | `plugins/cubo/skills/migrar-conta`, `conta.mjs`, `ledger.mjs` | ✅ 2026-10-13 |
 | Plano (leitura da origem, dependências, usuários, já existentes) | `scripts/plano.mjs`, `decidir.mjs` | ✅ 2026-10-13 |
 | Aplicar (troca de IDs, segunda passada, retomada) | `scripts/aplicar.mjs`, `refs.mjs` | ✅ 2026-10-13 |
 | Conferência na conta nova (IDs + texto cortado por hash) | `scripts/conferir.mjs` | ✅ 2026-10-13 |
