@@ -145,3 +145,23 @@ export function diferencas(antes, depois) {
   const ligacoesMudaram = arestasA.size !== arestasB.size || [...arestasA].some((k) => !arestasB.has(k))
   return { adicionados, removidos, alterados, ligacoesMudaram, igual: !adicionados.length && !removidos.length && !alterados.length && !ligacoesMudaram }
 }
+
+// Refs de um fluxo que ainda não foi gravado (a prévia): o catálogo diz, em cada nó e gatilho, que
+// chave guarda ID de quê (`refs: [{ path: "stageId", kind: "stage" }]`). Vale a última chave do
+// caminho; IDs dentro de texto (chips, {{cf.deal.N}}) ficam de fora — só aparecem depois de gravar.
+export function refsLocais(fluxo, defs, gatilhos) {
+  const ultimaChave = (caminho) => String(caminho).replace(/\[\d+\]/g, '').split('.').filter((p) => !/^\d+$/.test(p)).at(-1)
+  const chaves = new Map()
+  for (const def of [...Object.values(defs), ...Object.values(gatilhos)]) for (const ref of def.refs || []) if (ultimaChave(ref.path)) chaves.set(ultimaChave(ref.path), ref.kind)
+  const refs = []
+  const anda = (valor, caminho, chave) => {
+    if (Array.isArray(valor)) return valor.forEach((v, i) => anda(v, `${caminho}[${i}]`, chave))
+    if (valor && typeof valor === 'object') {
+      for (const [k, v] of Object.entries(valor)) anda(v, `${caminho}.${/^[A-Za-z_$][\w$]*$/.test(k) ? k : `["${k}"]`}`.replace('.[', '['), k)
+      return
+    }
+    if (chaves.has(chave) && (typeof valor === 'number' || /^\d+$/.test(String(valor ?? '')))) refs.push({ path: caminho, kind: chaves.get(chave), id: Number(valor) })
+  }
+  nosDoFluxo(fluxo).forEach((no, i) => anda(no.data ?? {}, `flowData.nodes[${i}].data`, null))
+  return refs
+}

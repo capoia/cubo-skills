@@ -81,7 +81,7 @@ export function agora() {
 
 // Data e hora boas para nome de arquivo nos três sistemas (sem `:`).
 export function carimbo(data = new Date()) {
-  return data.toISOString().replace(/[:]/g, '-').replace(/\..+$/, '')
+  return data.toISOString().replace(/[:.]/g, '-')
 }
 
 // Abrir arquivo ou página no programa padrão do sistema. Único ponto que depende do sistema, e só

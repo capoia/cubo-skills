@@ -51,6 +51,16 @@ export class ErroApi extends Error {
   }
 }
 
+// Erro da API que ninguém tratou vira a mensagem em pt-BR, sem pilha: quem lê não é técnico.
+process.on('uncaughtException', (erro) => {
+  if (erro instanceof ErroApi) {
+    console.error(`\n✘ ${erro.message}`)
+    process.exit(1)
+  }
+  console.error(erro)
+  process.exit(1)
+})
+
 // O 422 de validação traz `errors[]` com `{ path, code, message }`; os outros, `message` ou `error`.
 export function mensagensDoCorpo(corpo) {
   if (Array.isArray(corpo?.errors) && corpo.errors.length) return corpo.errors.map((erro) => (erro.path ? `${erro.message} (${erro.path})` : erro.message))

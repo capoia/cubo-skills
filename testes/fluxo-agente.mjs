@@ -64,18 +64,19 @@ const CATALOGO_AUTOMACOES = {
     no('ask_question', 'Fazer pergunta', 'messages', [{ handle: null, label: 'Seguir' }, { handle: 'timeout', label: 'Sem resposta', when: { field: 'timeoutMinutes', greaterThan: 0 } }, { handle: 'exhausted', label: 'Lembretes esgotados', when: { all: [{ field: 'followUp.enabled', equals: true }, { field: 'followUp.exhaustedAction.type', equals: 'handle_node' }] } }, ocupada]),
     no('menu_options', 'Menu de opções', 'messages', [{ handlesFrom: { list: 'options', key: 'targetHandle' }, label: 'Opção' }, ocupada]),
     no('condition', 'Condição', 'flow', [{ handle: 'yes', label: 'Sim' }, { handle: 'no', label: 'Não' }]),
-    no('move_stage', 'Mover etapa', 'deals', [{ handle: null, label: 'Seguir' }]),
+    no('move_stage', 'Mover etapa', 'deals', [{ handle: null, label: 'Seguir' }], { refs: [{ path: 'pipeId', kind: 'pipe' }, { path: 'stageId', kind: 'stage' }], defaults: { pipeId: null, stageId: null } }),
     no('update_deal', 'Atualizar negociação', 'deals', [{ handle: null, label: 'Seguir' }]),
     no('change_status', 'Mudar status', 'conversations', [{ handle: null, label: 'Seguir' }, ocupada]),
     no('end_flow', 'Encerrar conversa', 'conversations', [{ handle: null, label: 'Seguir' }, ocupada]),
     no('handoff_to_human', 'Transferir para humano', 'conversations', [{ handle: null, label: 'Seguir' }, ocupada]),
-    no('agent_call', 'Chamar agente', 'ai', [{ handle: null, label: 'Seguir' }, ocupada]),
+    no('agent_call', 'Chamar agente', 'ai', [{ handle: null, label: 'Seguir' }, ocupada], { refs: [{ path: 'agentId', kind: 'agent' }] }),
+    no('tag_conversation', 'Pôr tag', 'conversations', [{ handle: null, label: 'Seguir' }], { refs: [{ path: 'tagIds[0]', kind: 'tag' }] }),
     no('goto_node', 'Ir para o passo', 'flow', [ocupada]),
     no('start_flow', 'Iniciar outro fluxo', 'flow', [ocupada]),
     no('create_deal_from_chat', 'Criar negociação (antigo)', 'deals', [{ handle: null, label: 'Seguir' }], { deprecated: { replacedBy: 'create_deal' }, inPalette: false }),
   ],
   triggers: [
-    { type: 'deal_created', label: 'Negociação criada', entities: ['deal'], configSchema: { type: 'object' }, refs: [], example: {} },
+    { type: 'deal_created', label: 'Negociação criada', entities: ['deal'], configSchema: { type: 'object' }, refs: [{ path: 'pipeIds[0]', kind: 'pipe' }], example: {} },
     { type: 'message_received', label: 'Mensagem recebida', entities: ['conversation'], configSchema: { type: 'object' }, refs: [], example: {} },
   ],
   edges: { entrada: 'target' },
@@ -585,6 +586,143 @@ await caso('explicar-agente: página com conversas, ferramentas, onde é usado e
   const html = le('cubo/explicacoes/agente-600.html')
   confere(/Quero uma proposta/.test(html) && /simulado: nada mudou/.test(html) && /WhatsApp Vendas/.test(html) && /Passa para uma pessoa/.test(html), 'conteúdo')
   confere(/&#123;|\{\{tool:move_deal_stage/.test(html) && !/(src|href)="https?:/.test(html) && /não se responsabiliza/.test(html), 'escapado, local e com aviso')
+})
+
+// --- itens que faltam
+
+await caso('itens: plano sem criar; parecido vira pergunta; igual é usado; tipo sem API ensina a tela', async () => {
+  escreve('itens.json', [
+    { tipo: 'tag', nome: 'lead quente' },
+    { tipo: 'etapa', nome: 'Negociação', funil: 'Vendas' },
+    { tipo: 'tag', nome: 'Lead quentes' },
+    { tipo: 'usuario', nome: 'Bia' },
+  ])
+  const antes = banco.tags.length + banco.stages.length
+  const r = await roda('itens.mjs', ['criar', `@${join(PASTA, 'itens.json')}`, '--so-plano'])
+  confere(r.codigo === 3, `parecido para a lista: ${r.saida}`)
+  confere(/1\. \[USAR\] tag “lead quente”: já existe \(#40\)/.test(r.saida), r.saida)
+  confere(/2\. \[CRIAR\] etapa/.test(r.saida) && /3\. \[PERGUNTAR\] tag “Lead quentes”: há parecido: “Lead quente” \(#40\)/.test(r.saida) && /4\. \[NA TELA\].*Convidar/.test(r.saida), r.saida)
+  confere(banco.tags.length + banco.stages.length === antes, 'nada criado no plano')
+})
+
+await caso('itens: cria uma vez só (funil e etapa no mesmo lote), e rodar de novo reusa o criados.json', async () => {
+  escreve('itens.json', [
+    { tipo: 'funil', nome: 'Pós-venda' },
+    { tipo: 'etapa', nome: 'Boas-vindas', funil: 'Pós-venda' },
+    { tipo: 'tag', nome: 'Cliente novo' },
+  ])
+  const r = await roda('itens.mjs', ['criar', `@${join(PASTA, 'itens.json')}`])
+  confere(r.codigo === 0 && /\[CRIADO\] funil/.test(r.saida) && /\[CRIADO\] etapa/.test(r.saida), r.saida)
+  const funil = banco.pipes.find((p) => p.name === 'Pós-venda')
+  const etapa = banco.stages.find((s) => s.name === 'Boas-vindas')
+  confere(funil && etapa && etapa.pipeId === funil.id && banco.tags.find((t) => t.name === 'Cliente novo')?.color, `etapa no funil novo e tag com cor: ${JSON.stringify(etapa)}`)
+  const quantos = banco.pipes.length + banco.stages.length + banco.tags.length
+  const s = await roda('itens.mjs', ['criar', `@${join(PASTA, 'itens.json')}`])
+  confere(s.codigo === 0 && banco.pipes.length + banco.stages.length + banco.tags.length === quantos && /\[USAR\]/.test(s.saida), s.saida)
+  const l = await roda('itens.mjs', ['listar-criados'])
+  confere(/funil “Pós-venda”/.test(l.saida) && /na tela do Cubo/.test(l.saida), l.saida)
+  const b = await roda('itens.mjs', ['buscar', 'etapa', 'propos'])
+  confere(/#27 — Proposta \(funil Vendas\)/.test(b.saida), b.saida)
+})
+
+// --- editar e criar fluxo
+
+await caso('editar-fluxo: ler guarda cópia e avisa do rascunho não publicado; prévia aplica a lista e preserva o resto', async () => {
+  const r = await roda('fluxo/editar.mjs', ['ler', '701'])
+  confere(r.codigo === 0 && /Cópia de segurança/.test(r.saida) && /NÃO PUBLICADAS/.test(r.saida) && /LIGADO/.test(r.saida), r.saida)
+  escreve('mudancas.json', [
+    { op: 'inserir', tipo: 'tag_conversation', titulo: 'Marca quente', dados: { tagIds: [40] }, depoisDe: 'Quer proposta?', saida: 'Sim' },
+    { op: 'configurar', no: 'msg-1', dados: { message: 'Olá! Tudo bem?' } },
+    { op: 'tirar', no: 'solto-1' },
+    { op: 'desligar', de: 'end-1' },
+  ])
+  const p = await roda('fluxo/editar.mjs', ['previa', '701', `@${join(PASTA, 'mudancas.json')}`])
+  confere(p.codigo === 0 && /entra o passo “Marca quente” depois de “Quer proposta\?”/.test(p.saida) && /sai o passo “Esquecido”/.test(p.saida), p.saida)
+  const t = JSON.parse(le('cubo/trabalho/fluxo-701.json'))
+  const nos = t.novo.flowData.nodes
+  const arestas = t.novo.flowData.edges
+  confere(nos.find((n) => n.id === 'msg-1').data.message === 'Olá! Tudo bem?' && nos.some((n) => n.id === 'msg-2') && !nos.some((n) => n.id === 'solto-1'), 'preserva o rascunho (msg-2) e aplica')
+  const novo = nos.find((n) => n.data?.label === 'Marca quente')
+  confere(arestas.some((e) => e.source === 'cond-1' && e.sourceHandle === 'yes' && e.target === novo.id) && arestas.some((e) => e.source === novo.id && e.target === 'move-1') && !arestas.some((e) => e.source === 'cond-1' && e.target === 'move-1'), `inserido no meio: ${JSON.stringify(arestas)}`)
+  confere(novo.position && Number.isFinite(novo.position.y), 'nó novo com posição')
+  confere(/Lead quente \(#40\)/.test(p.saida), `nome da tag na prévia:\n${p.saida}`)
+  confere(/não se responsabiliza/.test(p.saida) && existsSync(join(PASTA, 'cubo', 'previas', 'fluxo-701.html')), 'aviso e página')
+})
+
+await caso('editar-fluxo: mudança impossível explica e não grava nada', async () => {
+  escreve('ruim.json', [{ op: 'ligar', de: 'cond-1', saida: 'Talvez', para: 'msg-1' }])
+  const r = await roda('fluxo/editar.mjs', ['previa', '701', `@${join(PASTA, 'ruim.json')}`])
+  confere(r.codigo === 1 && /não tem a saída “Talvez”/.test(r.saida) && /“Sim” \(yes\)/.test(r.saida), r.saida)
+  escreve('ruim2.json', [{ op: 'por', tipo: 'nao_existe' }])
+  const s = await roda('fluxo/editar.mjs', ['previa', '701', `@${join(PASTA, 'ruim2.json')}`])
+  confere(s.codigo === 1 && /não existe o tipo de nó/.test(s.saida), s.saida)
+  escreve('ref-ruim.json', [{ op: 'configurar', no: 'move-1', dados: { stageId: 31337 } }])
+  const t = await roda('fluxo/editar.mjs', ['previa', '701', `@${join(PASTA, 'ref-ruim.json')}`])
+  confere(t.codigo === 1 && /NÃO DÁ PARA GRAVAR/.test(t.saida), t.saida)
+  const g = await roda('fluxo/editar.mjs', ['gravar', '701'])
+  confere(g.codigo === 2 && /impede gravar/.test(g.saida), g.saida)
+  // volta para a prévia boa
+  await roda('fluxo/editar.mjs', ['previa', '701', `@${join(PASTA, 'mudancas.json')}`])
+})
+
+await caso('editar-fluxo: 412 no gravar relê, reaplica a mesma lista e pede para conferir, sem gravar', async () => {
+  const puts = chamadas.puts.length
+  falhas.putMudaNoMeio = true
+  const r = await roda('fluxo/editar.mjs', ['gravar', '701'])
+  confere(r.codigo === 5 && /412/.test(r.saida) && /NADA foi gravado/.test(r.saida) && /reapliquei/.test(r.saida), r.saida)
+  confere(chamadas.puts.length === puts, 'não gravou')
+  const t = JSON.parse(le('cubo/trabalho/fluxo-701.json'))
+  confere(t.novo.flowData.nodes.some((n) => n.id === 'de-outra-pessoa') && t.novo.flowData.nodes.some((n) => n.data?.label === 'Marca quente'), 'a prévia nova tem a mudança da outra pessoa e a nossa')
+})
+
+await caso('editar-fluxo: grava com If-Match, publica, e desfazer volta rascunho e publicado ao da cópia', async () => {
+  const a = banco.automations.find((x) => x.id === 701)
+  const publicadoAntes = JSON.stringify(a.published)
+  const r = await roda('fluxo/editar.mjs', ['gravar', '701'])
+  confere(r.codigo === 0 && /O que está no ar NÃO mudou/.test(r.saida), r.saida)
+  confere(chamadas.puts.at(-1).ifMatch && JSON.stringify(a.published) === publicadoAntes, 'If-Match mandado e publicado intacto')
+  const p = await roda('fluxo/editar.mjs', ['publicar', '701'])
+  confere(p.codigo === 0 && /LIGADO: já vale/.test(p.saida) && a.published.nodes.some((n) => n.data?.label === 'Marca quente'), p.saida)
+  const d = await roda('fluxo/editar.mjs', ['desligar', '701'])
+  confere(d.codigo === 0 && a.status === 'inactive', d.saida)
+  const copia = JSON.parse(readFileSync(JSON.parse(le('cubo/trabalho/fluxo-701.json')).copia, 'utf8'))
+  const semItem = await roda('fluxo/editar.mjs', ['desfazer', '701'])
+  confere(semItem.codigo === 1 && /não aceita gravar a cópia de volta/.test(semItem.saida) && !/at api/.test(semItem.saida), semItem.saida)
+  banco.stages.push({ id: 999, name: 'Recriada', pipeId: 30 })
+  const u = await roda('fluxo/editar.mjs', ['desfazer', '701'])
+  confere(u.codigo === 0 && /publicada de volta/.test(u.saida) && /rascunho de volta/.test(u.saida) && /ligado de novo/.test(u.saida), u.saida)
+  confere(JSON.stringify(a.published.nodes) === JSON.stringify(copia.publicado.flowData.nodes) && JSON.stringify(a.draft.nodes) === JSON.stringify(copia.rascunho.flowData.nodes) && a.status === 'active', 'publicado, rascunho e status iguais aos da cópia')
+})
+
+await caso('editar-fluxo: publicar com erro lista as mensagens do Cubo', async () => {
+  await roda('fluxo/editar.mjs', ['ler', '702'])
+  escreve('m702.json', [{ op: 'por', tipo: 'send_message', titulo: 'Oi', dados: { message: 'oi' } }])
+  const p = await roda('fluxo/editar.mjs', ['previa', '702', `@${join(PASTA, 'm702.json')}`])
+  confere(p.codigo === 0 && /NÃO para PUBLICAR/.test(p.saida), p.saida)
+  confere((await roda('fluxo/editar.mjs', ['gravar', '702'])).codigo === 0, 'gravou')
+  const r = await roda('fluxo/editar.mjs', ['publicar', '702'])
+  confere(r.codigo === 1 && /não publicou/.test(r.saida) && /gatilho/.test(r.saida), r.saida)
+})
+
+await caso('criar-fluxo: do zero, com gatilho e posições; nasce rascunho desligado; gravar de novo não duplica', async () => {
+  escreve('novo.json', [
+    { op: 'gatilho', acao: 'por', tipo: 'deal_created', config: { pipeIds: [30] } },
+    { op: 'por', id: 'oi', tipo: 'send_message', titulo: 'Oi', dados: { message: 'Bem-vindo!' } },
+    { op: 'por', id: 'mover', tipo: 'move_stage', titulo: 'Para proposta', dados: { pipeId: 30, stageId: 27 } },
+    { op: 'ligar', de: 'start', para: 'oi' },
+    { op: 'ligar', de: 'oi', para: 'mover' },
+  ])
+  const p = await roda('fluxo/criar.mjs', ['previa', `@${join(PASTA, 'novo.json')}`, '--nome=Entrada de lead'])
+  confere(p.codigo === 0 && /pronto para criar/.test(p.saida) && /Proposta \(funil Vendas\) \(#27\)/.test(p.saida) && /Negociação criada/.test(p.saida), p.saida)
+  const antes = banco.automations.length
+  const g = await roda('fluxo/criar.mjs', ['gravar'])
+  confere(g.codigo === 0 && /RASCUNHO e DESLIGADO/.test(g.saida) && banco.automations.length === antes + 1, g.saida)
+  const criado = banco.automations.at(-1)
+  confere(criado.status === 'draft' && criado.draft.nodes.every((n) => n.position) && criado.draft.nodes.find((n) => n.id === 'mover').position.y > criado.draft.nodes.find((n) => n.id === 'oi').position.y, JSON.stringify(criado.draft.nodes))
+  const de = await roda('fluxo/criar.mjs', ['gravar'])
+  confere(de.codigo === 0 && /já foi criado/.test(de.saida) && banco.automations.length === antes + 1, de.saida)
+  const outra = await roda('fluxo/criar.mjs', ['previa', `@${join(PASTA, 'novo.json')}`, '--nome=X'])
+  confere(outra.codigo === 2 && /--outro/.test(outra.saida), outra.saida)
 })
 
 servidor.close()
