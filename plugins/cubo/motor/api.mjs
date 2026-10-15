@@ -1,7 +1,8 @@
 // Acesso à conta e cliente da API do Cubo. Erro aqui tem que dizer o que fazer, porque quem lê não é
 // técnico.
 import { existsSync, readFileSync } from 'node:fs'
-import { espera, falha, pasta } from './lib.mjs'
+import { resolve } from 'node:path'
+import { espera, falha } from './lib.mjs'
 
 // O endereço do Cubo é um só para todas as contas (a chave é que diz qual conta): ele vem do
 // `cubo.json` do plugin, e não da pessoa. `CUBO_BASE_URL` no arquivo de acesso só serve para teste
@@ -15,8 +16,10 @@ export function enderecoPadrao() {
   }
 }
 
+// O mesmo `.cubo.env` da skill de landing page, na pasta onde a pessoa abriu o Claude Code: quem já
+// configurou uma skill do Cubo não cola a chave de novo (no máximo, marca permissões a mais).
 export function arquivoDeAcesso() {
-  return pasta('.cubo.env')
+  return resolve(process.env.CUBO_CONFIG || '.cubo.env')
 }
 
 export function acesso() {

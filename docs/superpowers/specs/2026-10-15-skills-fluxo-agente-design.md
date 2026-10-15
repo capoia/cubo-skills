@@ -66,7 +66,7 @@ plugins/cubo/
   cubo.json                     endereço do Cubo (já existe)
   motor/
     api.mjs                     chave, endereço, 429 com espera, ETag/If-Match, erros em pt-BR
-    acesso.mjs                  abrir/conferir a chave (cubo/.cubo.env, abre no editor)
+    acesso.mjs                  abrir/conferir a chave (.cubo.env da pasta, o mesmo da landing)
     catalogo.mjs                baixa o catálogo, guarda em cache, relê só quando muda (304)
     buscar.mjs                  acha itens da conta pelo nome (etapa, tag, campo, usuário, agente, template…)
     itens.mjs                   a tabela do que se cria pela API (rota, escopo, regras) e a criação em si
@@ -98,8 +98,8 @@ funciona no dia em que entra no Cubo, sem versão nova do plugin.
 **Pasta de trabalho:** tudo fica em `cubo/`, onde a pessoa rodou a skill, e é a mesma para as seis:
 
 ```
+.cubo.env              CUBO_API_KEY (o mesmo arquivo da skill de landing page)
 cubo/
-  .cubo.env            CUBO_API_KEY (e CUBO_BASE_URL só para teste ou marca branca)
   cache/               catalogo-automacoes.json, catalogo-agentes-<conta>.json
   explicacoes/         fluxo-<id>.html, agente-<id>.html
   copias/              fluxo-<id>-<data e hora>.json, agente-<id>-<data e hora>.json

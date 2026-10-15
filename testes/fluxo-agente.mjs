@@ -466,7 +466,7 @@ const servidor = createServer(async (req, res) => {
 })
 await new Promise((pronto) => servidor.listen(0, '127.0.0.1', pronto))
 const BASE = `http://127.0.0.1:${servidor.address().port}`
-const acessoCom = (chave, pasta = PASTA) => escreve(join('cubo', '.cubo.env'), `CUBO_BASE_URL=${BASE}\nCUBO_API_KEY=${chave}\n`, pasta)
+const acessoCom = (chave, pasta = PASTA) => escreve('.cubo.env', `CUBO_BASE_URL=${BASE}\nCUBO_API_KEY=${chave}\n`, pasta)
 
 // ---------------------------------------------------------------------------------------------
 // Casos.
@@ -475,7 +475,7 @@ await caso('acesso: sem arquivo, não deixa seguir e ensina a abrir; abrir cria 
   const r = await roda('acesso.mjs', ['conferir', '--para=explicar-fluxo'])
   confere(r.codigo === 1 && /acesso\.mjs" abrir/.test(r.saida), r.saida)
   const a = await roda('acesso.mjs', ['abrir'])
-  confere(a.codigo === 0 && /CUBO_API_KEY=/.test(le('cubo/.cubo.env')), a.saida)
+  confere(a.codigo === 0 && /CUBO_API_KEY=/.test(le('.cubo.env')), a.saida)
 })
 
 await caso('acesso: permissão e módulo que faltam aparecem com o que fazer', async () => {
@@ -723,6 +723,67 @@ await caso('criar-fluxo: do zero, com gatilho e posições; nasce rascunho desli
   confere(de.codigo === 0 && /já foi criado/.test(de.saida) && banco.automations.length === antes + 1, de.saida)
   const outra = await roda('fluxo/criar.mjs', ['previa', `@${join(PASTA, 'novo.json')}`, '--nome=X'])
   confere(outra.codigo === 2 && /--outro/.test(outra.saida), outra.saida)
+})
+
+// --- editar e criar agente
+
+await caso('editar-agente: ler separa prompt e configuração, guarda a cópia e avisa onde é usado', async () => {
+  const r = await roda('agente/editar.mjs', ['ler', '600'])
+  confere(r.codigo === 0 && /não tem rascunho/.test(r.saida) && /canal “WhatsApp Vendas”/.test(r.saida), r.saida)
+  const config = JSON.parse(le('cubo/trabalho/agente-600.config.json'))
+  confere(!('handoffTargets' in config) && !('id' in config) && !('systemPrompt' in config) && config.temperature === 0.3, JSON.stringify(config))
+  confere(le('cubo/trabalho/agente-600.prompt.md').startsWith('Você é o SDR'), 'prompt no arquivo')
+})
+
+await caso('editar-agente: prévia mostra o antes → depois; chip novo quebrado é recusado antes de gravar', async () => {
+  const original = le('cubo/trabalho/agente-600.prompt.md')
+  escreve('cubo/trabalho/agente-600.prompt.md', `${original}\nQuando fechar, use {{tool:move_deal_stage(pipeId=30,stageId=777)}}.`)
+  const r = await roda('agente/editar.mjs', ['previa', '600', `--prompt=@${join(PASTA, 'cubo/trabalho/agente-600.prompt.md')}`])
+  confere(r.codigo === 1 && /\(foreign_ref\)/.test(r.saida) && /NÃO DÁ PARA GRAVAR/.test(r.saida), r.saida)
+  escreve('cubo/trabalho/agente-600.prompt.md', `${original}\nSeja sempre educado e breve.`)
+  escreve('config-nova.json', { ...JSON.parse(le('cubo/trabalho/agente-600.config.json')), temperature: 0.5 })
+  const s = await roda('agente/editar.mjs', ['previa', '600', `--prompt=@${join(PASTA, 'cubo/trabalho/agente-600.prompt.md')}`, `--config=@${join(PASTA, 'config-nova.json')}`])
+  confere(s.codigo === 0 && /\+ Seja sempre educado e breve\./.test(s.saida) && /temperature: 0\.3 → 0\.5/.test(s.saida) && /WhatsApp Vendas/.test(s.saida), s.saida)
+})
+
+await caso('editar-agente: 412 mostra o que a outra pessoa mudou e não regrava', async () => {
+  const puts = chamadas.puts.length
+  falhas.putMudaNoMeio = true
+  const r = await roda('agente/editar.mjs', ['gravar', '600'])
+  confere(r.codigo === 5 && /mudado por outra pessoa/.test(r.saida) && chamadas.puts.length === puts, r.saida)
+  const g = await roda('agente/editar.mjs', ['gravar', '600'])
+  confere(g.codigo === 2 && /prévia antes/.test(g.saida), `sem prévia nova, não grava: ${g.saida}`)
+})
+
+await caso('editar-agente: grava com If-Match sem campos removidos, e desfazer volta e confere', async () => {
+  await roda('agente/editar.mjs', ['ler', '600'])
+  const prompt = le('cubo/trabalho/agente-600.prompt.md')
+  escreve('cubo/trabalho/agente-600.prompt.md', `${prompt}\nNova regra.`)
+  const config = JSON.parse(le('cubo/trabalho/agente-600.config.json'))
+  escreve('cubo/trabalho/agente-600.config.json', { ...config, enabledMcpConnections: [1], allowKnowledgeWriting: true })
+  confere((await roda('agente/editar.mjs', ['previa', '600', `--prompt=@${join(PASTA, 'cubo/trabalho/agente-600.prompt.md')}`, `--config=@${join(PASTA, 'cubo/trabalho/agente-600.config.json')}`])).codigo === 0, 'prévia')
+  const r = await roda('agente/editar.mjs', ['gravar', '600'])
+  const put = chamadas.puts.at(-1)
+  confere(r.codigo === 0 && put.ifMatch && !('enabledMcpConnections' in put.corpo) && !('allowKnowledgeWriting' in put.corpo) && !('handoffTargets' in put.corpo), `${r.saida}\n${JSON.stringify(put)}`)
+  const ag = banco.agents.find((a) => a.id === 600)
+  confere(ag.systemPrompt.endsWith('Nova regra.'), 'gravou')
+  const d = await roda('agente/editar.mjs', ['desfazer', '600'])
+  confere(d.codigo === 0 && /conferido/.test(d.saida) && ag.systemPrompt === prompt, d.saida)
+})
+
+await caso('criar-agente: modelos, prévia com modelo sem ferramentas acusado, cria com enabledTools vazio e não duplica', async () => {
+  const m = await roda('agente/criar.mjs', ['modelos'])
+  confere(m.codigo === 0 && /#90 — OpenAI/.test(m.saida) && /o1-mini.*NÃO usa ferramentas/.test(m.saida), m.saida)
+  escreve('prompt-novo.md', 'Você atende o pós-venda. Para pôr tag, {{tool:add_tag(tagId=40)}}.')
+  const ruim = await roda('agente/criar.mjs', ['previa', '--nome=Pós-venda', '--integracao=90', '--modelo=o1-mini', `--prompt=@${join(PASTA, 'prompt-novo.md')}`])
+  confere(/\(modelo_sem_ferramentas\)/.test(ruim.saida), ruim.saida)
+  const p = await roda('agente/criar.mjs', ['previa', '--nome=Pós-venda', '--integracao=90', '--modelo=gpt-4o', `--prompt=@${join(PASTA, 'prompt-novo.md')}`])
+  confere(p.codigo === 0 && /Pôr tag \(Tag: Lead quente\)/.test(p.saida), p.saida)
+  const antes = banco.agents.length
+  const g = await roda('agente/criar.mjs', ['gravar'])
+  const criado = banco.agents.at(-1)
+  confere(g.codigo === 0 && banco.agents.length === antes + 1 && Array.isArray(criado.enabledTools) && !criado.enabledTools.length && !('handoffTargets' in criado) && /não apaga agente/.test(g.saida), g.saida)
+  confere((await roda('agente/criar.mjs', ['gravar'])).saida.includes('já foi criado') && banco.agents.length === antes + 1, 'não duplica')
 })
 
 servidor.close()

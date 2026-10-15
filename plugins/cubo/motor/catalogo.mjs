@@ -106,6 +106,9 @@ async function principal() {
     const chip = chipsPorNome(cat)[alvo]
     if (!chip) falha(`não existe chip "${alvo}" no catálogo desta conta. Veja a lista: catalogo.mjs resumo agentes`, 2)
     console.log(JSON.stringify(chip, null, 2))
+  } else if (comando === 'followup') {
+    const cat = await catalogo('agentes')
+    console.log(JSON.stringify(cat.followUp, null, 2))
   } else if (comando === 'regras') {
     const cat = await catalogo('automacoes')
     console.log(JSON.stringify(opcoes.so ? cat[opcoes.so] : { edges: cat.edges, variables: cat.variables, conventions: cat.conventions, limits: cat.limits }, null, 2))
@@ -115,6 +118,7 @@ async function principal() {
   catalogo.mjs no <tipo>                     um nó: schema, padrões, saídas, exemplo
   catalogo.mjs gatilho <tipo>                um gatilho: schema do triggerConfig, exemplo
   catalogo.mjs chip <nome>                   um chip de agente: parâmetros e de onde vêm os valores
+  catalogo.mjs followup                      o JSON Schema dos lembretes do agente (followUpConfig)
   catalogo.mjs regras [--so=edges|variables|conventions|limits]`, 2)
   }
 }

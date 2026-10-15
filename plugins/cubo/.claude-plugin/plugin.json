@@ -1,7 +1,7 @@
 {
   "name": "cubo",
-  "version": "4.1.0",
-  "description": "Skills do Cubo Suite: criar landing page em HTML no Cubo (/cubo:criar-landing-html) e copiar a configuração de uma conta para outra (/cubo:migrar-conta). Windows, macOS e Linux, só com Node.",
+  "version": "4.2.0",
+  "description": "Skills do Cubo Suite: landing page em HTML (/cubo:criar-landing-html), cópia de conta (/cubo:migrar-conta) e explicar, criar e editar fluxos e agentes de IA (/cubo:explicar-fluxo, /cubo:editar-agente…). Windows, macOS e Linux, só com Node.",
   "author": {
     "name": "Cubo Suite"
   },
@@ -16,6 +16,9 @@
     "seo",
     "pagespeed",
     "migração",
-    "copiar conta"
+    "copiar conta",
+    "automação",
+    "fluxo",
+    "agente de IA"
   ]
 }
