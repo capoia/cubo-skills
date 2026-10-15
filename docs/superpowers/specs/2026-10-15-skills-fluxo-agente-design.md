@@ -41,6 +41,9 @@ pela conversa sem quebrar nada que está no ar, e consegue voltar atrás.
 6. Fluxo: gravar mexe só no rascunho; publicar e ligar são perguntas separadas, com "não" como
    recomendado.
 7. Entrega em três PRs: (1) motor + explicar; (2) editar; (3) criar.
+8. **O que tem API, a skill cria; o que não tem, a skill ensina a fazer na tela.** Ao criar ou
+   editar fluxo ou agente, tag, funil, etapa, campo, template etc. que faltarem são criados pela
+   API, com a confirmação da pessoa (ver "Itens que faltam").
 
 ## Arquitetura
 
@@ -52,6 +55,7 @@ plugins/cubo/
     acesso.mjs                  abrir/conferir a chave (cubo/.cubo.env, abre no editor)
     catalogo.mjs                baixa o catálogo, guarda em cache, relê só quando muda (304)
     buscar.mjs                  acha itens da conta pelo nome (etapa, tag, campo, usuário, agente, template…)
+    itens.mjs                   a tabela do que se cria pela API (rota, escopo, regras) e a criação em si
     copias.mjs                  guarda e lista as cópias de segurança
     fluxo/   ler · descrever · armadilhas · mudancas · layout · validar · gravar · publicar · desfazer
     agente/  ler · descrever · onde-usado · validar · gravar · simular · desfazer
@@ -85,6 +89,7 @@ cubo/
   cache/               catalogo-automacoes.json, catalogo-agentes-<conta>.json
   explicacoes/         fluxo-<id>.html, agente-<id>.html
   copias/              fluxo-<id>-<data e hora>.json, agente-<id>-<data e hora>.json
+  criados.json         itens criados pela skill (para rodar de novo sem duplicar, e para o relatório)
 ```
 
 **Acesso:** a chave nunca passa pela conversa. A pessoa digita
@@ -95,8 +100,11 @@ cubo/
 | --- | --- |
 | explicar-fluxo | leitura de Automações e das áreas que os `refs` apontam |
 | explicar-agente | leitura de Agentes, Canais, Automações; "Simular" para os exemplos |
-| criar/editar-fluxo | leitura, criação e edição de Automações + leitura das áreas usadas |
-| criar/editar-agente | chave de **administrador**, leitura, criação e edição de Agentes, "Simular", módulo Agentes de IA ligado |
+| criar/editar-fluxo | leitura, criação e edição de Automações + leitura das áreas usadas + criação nas áreas dos itens que faltarem |
+| criar/editar-agente | chave de **administrador**, leitura, criação e edição de Agentes, "Simular", módulo Agentes de IA ligado + criação nas áreas dos itens que faltarem |
+
+A permissão de criação dos itens que faltam é conferida na hora em que a falta aparece (não dá para
+saber antes da entrevista); faltou, a skill diz qual marcar na chave e confere de novo.
 
 ## As skills de explicar
 
@@ -152,8 +160,8 @@ cubo/
   os nós no desenho e preserva o que não foi tocado. Corpo grande vai por arquivo (`@mudancas.json`).
 - **Catálogo aos poucos:** `catalogo.mjs resumo` (tipo, para que serve, quando usar) e
   `catalogo.mjs no <tipo>` (schema, exemplo, saídas) só do nó que vai ser usado.
-- **Nenhum ID inventado:** itens da conta saem do `buscar.mjs`. Item que não existe: a skill diz o
-  que falta e onde criar no Cubo (criar tag, funil etc. fica fora destas skills).
+- **Nenhum ID inventado:** itens da conta saem do `buscar.mjs`. Item que não existe é criado pela
+  API (ver "Itens que faltam").
 - **Validar antes de gravar, sempre;** erros voltam ao Claude. Depois de 3 voltas sem acertar, para
   e mostra à pessoa.
 - **A pessoa vê antes de gravar:** resumo e página do fluxo como vai ficar (o mesmo `descrever`);
@@ -192,9 +200,11 @@ ligar?
   `toolsUnsupported` e prompt com chips vira aviso antes de gravar.
 - **Corpo só com o que o Cubo aceita:** sem `handoffTargets`, `enabledMcpConnections`,
   `allowKnowledgeWriting`; agente novo com `enabledTools: []`.
-- **O que não faz, e diz:** criar intent; conectar MCP; ligar o agente a canal ou automação (dá o
-  caminho no Cubo); `send_file` com arquivo novo (o Cubo exige `fileId`, que o upload pela chave
-  não devolve — mantém os existentes e explica).
+- **Itens que faltam** (etapa, template, intent, base de conhecimento…) são criados como no fluxo
+  (ver "Itens que faltam"). Intent nasce desligada; se precisa de segredo, a pessoa preenche na tela.
+- **O que não faz, e diz:** conectar MCP; ligar o agente a canal (dá o caminho no Cubo); `send_file`
+  com arquivo novo (o Cubo exige `fileId`, que o upload pela chave não devolve — mantém os
+  existentes e explica).
 - Validar com o mesmo ciclo de 3 voltas.
 
 ### `/cubo:criar-agente`
@@ -217,6 +227,42 @@ para ligar. Não há DELETE pela API: se a pessoa desistir, a skill diz onde apa
    mudar.
 7. **Desfazer:** `agente/desfazer.mjs <id>` grava a cópia mais recente com `If-Match`, pergunta
    antes e confere com um GET.
+
+## Itens que faltam
+
+Vale para as quatro skills que escrevem. Regra: **o que tem API, a skill cria; o que não tem, a
+skill dá o passo a passo na tela.**
+
+**Pela API** (as mesmas rotas que a migração já usa e testou contra o CRM real): tags, funis,
+etapas, campos personalizados, produtos, categorias, departamentos, motivos (perda, resolução,
+transferência, pausa), templates, trilhas de atividade, bases de conhecimento e pastas, intents,
+formulários, filtros, pastas de automações e de agentes.
+
+**Na tela, com o texto pronto para a pessoa:** usuários; conectar canal (WhatsApp, Instagram…);
+login de integração e de credencial OAuth; MCP; aprovação de template de WhatsApp pela Meta.
+
+**Agente ou fluxo que falta no meio de outro** (`agent_call`, `start_flow`): é grande demais para
+nascer de passagem. A skill pausa, sugere `/cubo:criar-agente` ou `/cubo:criar-fluxo`, e retoma
+depois com o novo.
+
+**Como cria:**
+
+1. **Procura antes**, sem diferenciar maiúscula nem acento. Achou parecido ("Proposta enviada" para
+   "proposta"): pergunta clicável "usar a que já existe?". Nunca cria duplicado sem perguntar.
+2. **Junta tudo numa lista** e mostra na mesma confirmação do "Posso gravar?": "vou criar também: a
+   tag *Lead quente*, a etapa *Proposta* no funil *Vendas*".
+3. **Cria os itens antes** do fluxo ou agente, com o mesmo estado seguro da migração (intent
+   desligada). Cada item vai para `cubo/criados.json`: se algo cair no meio, rodar de novo reusa o
+   que já foi criado.
+4. **Avisa o que fica pendente:** template de WhatsApp só funciona depois de aprovado pela Meta;
+   intent precisa ser revisada e ligada.
+
+**Desfazer não apaga esses itens.** A API não tem DELETE de tag, funil, etapa, campo, intent e da
+maioria dos outros (template tem). O `desfazer` volta o fluxo ou agente e lista os itens criados, com
+o caminho para apagar na tela se a pessoa quiser. Item criado e não usado não muda nada na conta.
+
+A tabela de rotas, escopos e regras de cada item mora só no `motor/itens.mjs`, como o `areas.mjs`
+da migração. Unificar os dois fica para depois, fora deste projeto.
 
 ## Motor: detalhes
 
@@ -242,7 +288,8 @@ para ligar. Não há DELETE pela API: se a pessoa desistir, a skill diz onde apa
 - Casos (cada um visto falhando antes): 304 usa cache; `descrever` troca IDs por nomes; cada
   armadilha é acusada; lista de mudanças preserva o que não foi tocado; 412 relê e reaplica;
   `desfazer` volta exatamente à cópia; simulação respeita 10/min; página sai sem rede; caminhos no
-  Windows.
+  Windows; item que falta é criado uma vez só (rodar de novo reusa o `criados.json`); item parecido
+  vira pergunta, não duplicado.
 - Entra no CI existente: Windows, macOS e Linux; Node 20 e 22.
 - Antes de dar por pronto: cada skill inteira contra um slot de worktree do `cubo-crm`.
 
@@ -259,5 +306,7 @@ versão nos dois manifestos, fumaça verde no CI.
 
 ## Fora do escopo
 
-Criar tag, funil, etapa, intent ou template; conectar MCP; ligar agente a canal; apagar agente;
-`send_file` com arquivo novo; simular automação (não existe no Cubo).
+O que a API não faz (usuário, conexão de canal, login de integração, MCP, aprovação da Meta):
+a skill ensina na tela. Também fora: criar agente ou fluxo de passagem dentro de outro; ligar agente
+a canal; apagar agente ou os itens criados; `send_file` com arquivo novo; simular automação (não
+existe no Cubo).
