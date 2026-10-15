@@ -146,22 +146,28 @@ export function diferencas(antes, depois) {
   return { adicionados, removidos, alterados, ligacoesMudaram, igual: !adicionados.length && !removidos.length && !alterados.length && !ligacoesMudaram }
 }
 
-// Refs de um fluxo que ainda não foi gravado (a prévia): o catálogo diz, em cada nó e gatilho, que
-// chave guarda ID de quê (`refs: [{ path: "stageId", kind: "stage" }]`). Vale a última chave do
-// caminho; IDs dentro de texto (chips, {{cf.deal.N}}) ficam de fora — só aparecem depois de gravar.
+// Refs de um fluxo que ainda não foi gravado (a prévia): o catálogo diz, em cada tipo de nó e de
+// gatilho, que chave guarda ID de quê (`refs: [{ path: "stageId", kind: "stage" }]`). Cada nó usa só
+// os refs do PRÓPRIO tipo: o `value` da condição não é o `value` de outro nó. IDs dentro de texto
+// (chips, {{cf.deal.N}}) ficam de fora — só aparecem depois de gravar.
 export function refsLocais(fluxo, defs, gatilhos) {
   const ultimaChave = (caminho) => String(caminho).replace(/\[\d+\]/g, '').split('.').filter((p) => !/^\d+$/.test(p)).at(-1)
-  const chaves = new Map()
-  for (const def of [...Object.values(defs), ...Object.values(gatilhos)]) for (const ref of def.refs || []) if (ultimaChave(ref.path)) chaves.set(ultimaChave(ref.path), ref.kind)
+  const chavesDe = (def) => new Map((def?.refs || []).filter((r) => ultimaChave(r.path)).map((r) => [ultimaChave(r.path), r.kind]))
   const refs = []
-  const anda = (valor, caminho, chave) => {
-    if (Array.isArray(valor)) return valor.forEach((v, i) => anda(v, `${caminho}[${i}]`, chave))
+  const anda = (valor, caminho, chave, chaves) => {
+    if (Array.isArray(valor)) return valor.forEach((v, i) => anda(v, `${caminho}[${i}]`, chave, chaves))
     if (valor && typeof valor === 'object') {
-      for (const [k, v] of Object.entries(valor)) anda(v, `${caminho}.${/^[A-Za-z_$][\w$]*$/.test(k) ? k : `["${k}"]`}`.replace('.[', '['), k)
+      for (const [k, v] of Object.entries(valor)) anda(v, /^[A-Za-z_$][\w$]*$/.test(k) ? `${caminho}.${k}` : `${caminho}["${k}"]`, k, chaves)
       return
     }
     if (chaves.has(chave) && (typeof valor === 'number' || /^\d+$/.test(String(valor ?? '')))) refs.push({ path: caminho, kind: chaves.get(chave), id: Number(valor) })
   }
-  nosDoFluxo(fluxo).forEach((no, i) => anda(no.data ?? {}, `flowData.nodes[${i}].data`, null))
+  nosDoFluxo(fluxo).forEach((no, i) => {
+    if (no.type === 'start' || no.type === 'trigger') {
+      ;(no.data?.triggers || []).forEach((g, k) => anda(g.triggerConfig ?? {}, `flowData.nodes[${i}].data.triggers[${k}].triggerConfig`, null, chavesDe(gatilhos[g.triggerType])))
+      return
+    }
+    anda(no.data ?? {}, `flowData.nodes[${i}].data`, null, chavesDe(defs[no.type]))
+  })
   return refs
 }

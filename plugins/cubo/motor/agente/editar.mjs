@@ -5,7 +5,7 @@
 //   previa <id> [--prompt=@arq] [--config=@arq] monta a versão nova, valida, mostra antes → depois e onde é usado
 //   gravar <id>                                grava com If-Match (412: relê, mostra o que mudou e NÃO regrava)
 //   desfazer <id> [--copia=<arquivo>]          grava de volta a cópia e confere
-import { api, desembrulhar, ErroApi } from '../api.mjs'
+import { desembrulhar, ErroApi } from '../api.mjs'
 import { AVISO } from '../aviso.mjs'
 import { guardarCopia, pegarCopia } from '../copias.mjs'
 import { abrirNoSistema, argumentos, falha, gravarJson, gravarTexto, lerEntrada, lerJson, lerJsonEntrada, pasta } from '../lib.mjs'
@@ -13,7 +13,7 @@ import { esc } from '../pagina.mjs'
 import { quemUsaAgente, varrer } from '../usos.mjs'
 import { contarProblemas, problemasEmTexto } from '../fluxo/comum.mjs'
 import { fraseDoChip } from './chips.mjs'
-import { acharAgente, contextoAgente, corpoGravavel, descreverAgente, juntarProblemasAgente, lerAgente, modeloSemFerramentas, paginaDoAgente, roteiroAgente, validarAgente } from './comum.mjs'
+import { acharAgente, contextoAgente, corpoGravavel, descreverAgente, gravarAgente, juntarProblemasAgente, lerAgente, modeloSemFerramentas, paginaDoAgente, roteiroAgente, validarAgente } from './comum.mjs'
 import { diferencaDeConfig, diferencaEmTexto } from './diferenca.mjs'
 
 const arquivoTrabalho = (id) => pasta('trabalho', `agente-${id}.json`)
@@ -106,7 +106,7 @@ async function gravar(id) {
   if (t.gravadoEm && t.gravadoEm > (t.previaEm ?? '')) falha('esta prévia já foi gravada. Para mudar mais, rode ler e previa de novo.', 2)
   if ((t.validacao?.errors || []).length) falha('a prévia tem erro. Corrija e rode a prévia de novo.', 2)
   try {
-    const { corpo, etag } = await api('PUT', `/api/agents/${id}`, t.novo, { completo: true, cabecalhos: { 'If-Match': t.etag } })
+    const { corpo, etag } = await gravarAgente(id, t.novo, t.etag, t.agente)
     const gravado = desembrulhar(corpo)
     gravarJson(arquivoTrabalho(id), { ...t, etag, agente: corpoGravavel(gravado), gravadoEm: new Date().toISOString() })
     console.log(`Gravado: o agente #${id} já está com a versão nova (agente não tem rascunho).`)
@@ -129,9 +129,9 @@ async function gravar(id) {
 
 async function desfazer(id, opcoes) {
   const { conteudo: copia, arquivo, quando } = pegarCopia('agente', id, opcoes.copia)
-  const { etag } = await lerAgente(id)
+  const { agente: atual, etag } = await lerAgente(id)
   console.log(`Voltando o agente #${id} à cópia de ${quando.replace('T', ' ')} (${arquivo}).`)
-  await api('PUT', `/api/agents/${id}`, corpoGravavel(copia.corpo), { cabecalhos: { 'If-Match': etag } })
+  await gravarAgente(id, corpoGravavel(copia.corpo), etag, corpoGravavel(atual))
   const { agente } = await lerAgente(id)
   const diferencas = diferencaDeConfig(corpoGravavel(copia.corpo), corpoGravavel(agente), [])
   if (diferencas.length) falha(`gravei, mas o agente ficou diferente da cópia em: ${diferencas.map((d) => d.chave).join(', ')}. Confira no Cubo.`, 1)

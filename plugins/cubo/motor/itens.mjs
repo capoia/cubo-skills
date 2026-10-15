@@ -243,7 +243,7 @@ async function principal() {
     const texto = resto.length ? normalizar(resto.join(' ')) : ''
     const achados = texto ? itens.filter((x) => normalizar(nomeDe(tipo, x)).includes(texto) || distancia(normalizar(nomeDe(tipo, x)), texto) <= 2) : itens
     const funis = tipo === 'etapa' ? new Map((await listaDe('funil')).map((f) => [String(f.id), f.name])) : null
-    if (!achados.length) console.log(`Nenhum ${TODOS[tipo].rotulo} ${texto ? `com “${resto.join(' ')}”` : 'na conta'}.`)
+    if (!achados.length) console.log(`Nada encontrado (${TODOS[tipo].rotulo}${texto ? `, “${resto.join(' ')}”` : ''}).`)
     for (const x of achados.slice(0, 50)) console.log(`  #${x.id} — ${nomeDe(tipo, x)}${funis ? ` (funil ${funis.get(String(x.pipeId)) ?? x.pipeId})` : ''}${x.context ? ` [${x.context}]` : ''}${x.type && tipo !== 'fluxo' ? ` [${x.type}]` : ''}${x.enabled === false ? ' (desligada)' : ''}${x.status && tipo === 'fluxo' ? ` (${x.status})` : ''}`)
     if (achados.length > 50) console.log(`  … e mais ${achados.length - 50}. Refine a busca.`)
   } else if (comando === 'criar') {

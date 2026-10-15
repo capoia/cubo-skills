@@ -71,6 +71,7 @@ const CATALOGO_AUTOMACOES = {
     no('handoff_to_human', 'Transferir para humano', 'conversations', [{ handle: null, label: 'Seguir' }, ocupada]),
     no('agent_call', 'Chamar agente', 'ai', [{ handle: null, label: 'Seguir' }, ocupada], { refs: [{ path: 'agentId', kind: 'agent' }] }),
     no('tag_conversation', 'Pôr tag', 'conversations', [{ handle: null, label: 'Seguir' }], { refs: [{ path: 'tagIds[0]', kind: 'tag' }] }),
+    no('set_tag_value', 'Tag por valor', 'conversations', [{ handle: null, label: 'Seguir' }], { refs: [{ path: 'value', kind: 'tag' }] }),
     no('goto_node', 'Ir para o passo', 'flow', [ocupada]),
     no('start_flow', 'Iniciar outro fluxo', 'flow', [ocupada]),
     no('create_deal_from_chat', 'Criar negociação (antigo)', 'deals', [{ handle: null, label: 'Seguir' }], { deprecated: { replacedBy: 'create_deal' }, inPalette: false }),
@@ -126,7 +127,7 @@ const banco = {
   lostreasons: [],
 }
 const chamadas = { catalogoAutomacoes: [], catalogoAgentes: [], simulacoes: 0, puts: [], posts: [] }
-const falhas = { simulate429: 0, putMudaNoMeio: false }
+const falhas = { simulate429: 0, putMudaNoMeio: false, etagInstavel: 0 }
 
 const etagDe = (objeto) => `"${createHash('sha1').update(JSON.stringify(objeto)).digest('hex').slice(0, 16)}"`
 const proximo = () => ++proximoId
@@ -398,6 +399,7 @@ const servidor = createServer(async (req, res) => {
     }
     chamadas.simulacoes++
     const ultima = corpo.messages.at(-1)?.content ?? ''
+    if (/chave ruim/i.test(ultima)) return responde(200, { executionId: 'x', status: 'error', reply: '', error: 'Incorrect API key provided', isComplete: false, toolCalls: [], usage: { costCents: 0 } })
     const quer = /proposta/i.test(ultima)
     return responde(200, { executionId: `sim-${chamadas.simulacoes}`, status: 'success', reply: quer ? 'Claro! Já movi sua negociação para Proposta.' : 'Posso ajudar com mais alguma coisa?', isComplete: false, toolCalls: quer ? [{ name: 'move_deal_stage_27_30', args: {}, output: { ok: true }, simulated: true }] : [], usage: { inputTokens: 100, outputTokens: 20, costCents: 0.4, latencyMs: 900 } })
   }
@@ -422,6 +424,11 @@ const servidor = createServer(async (req, res) => {
       if (!exige('agents', 'read')) return
       const objeto = structuredClone(ag)
       if (url.searchParams.get('include') === 'refs') objeto.refs = extrairRefs(objeto)
+      // O Cubo de verdade às vezes devolve outro ETag para o mesmo agente (medido no slot, 2026-10-15).
+      if (falhas.etagInstavel > 0 && !url.searchParams.get('include')) {
+        falhas.etagInstavel--
+        return responde(200, objeto, { ETag: '"instavel"' })
+      }
       return responde(200, objeto, { ETag: etagDe(ag) })
     }
     if (req.method === 'PUT') {
@@ -579,6 +586,14 @@ await caso('simular: uma fala por vez, espera no teto por minuto e no 429, guard
   confere(/Custo total: 1,20 centavos/.test(r.saida) && /nada mudou na conta/.test(r.saida), r.saida)
 })
 
+await caso('simular: erro do agente no Cubo aparece com o que fazer, e sai 4', async () => {
+  escreve('sit-erro.json', [{ titulo: 'Chave', mensagens: ['chave ruim'] }])
+  const r = await roda('agente/simular.mjs', ['600', `@${join(PASTA, 'sit-erro.json')}`, '--juntar'])
+  confere(r.codigo === 4 && /deu erro no Cubo: Incorrect API key/.test(r.saida) && /chave da integração de IA/.test(r.saida), r.saida)
+  const ex = JSON.parse(le('cubo/explicacoes/agente-600.exemplos.json')).exemplos
+  confere(ex.length === 3 && /deu erro/.test(ex.at(-1).turnos[0].erro), 'guarda o erro junto dos exemplos')
+})
+
 await caso('explicar-agente: página com conversas, ferramentas, onde é usado e o prompt escapado', async () => {
   escreve('cubo/explicacoes/agente-600.texto.json', { resumo: 'O SDR atende o WhatsApp de vendas.', explicacao: 'Ele responde dúvidas e move para Proposta.', chips: { '{{tool:transfer_to_human}}': 'Passa para uma pessoa.' } })
   const r = await roda('agente/explicar.mjs', ['pagina', '600'])
@@ -709,11 +724,14 @@ await caso('criar-fluxo: do zero, com gatilho e posições; nasce rascunho desli
     { op: 'gatilho', acao: 'por', tipo: 'deal_created', config: { pipeIds: [30] } },
     { op: 'por', id: 'oi', tipo: 'send_message', titulo: 'Oi', dados: { message: 'Bem-vindo!' } },
     { op: 'por', id: 'mover', tipo: 'move_stage', titulo: 'Para proposta', dados: { pipeId: 30, stageId: 27 } },
+    { op: 'por', id: 'valor', tipo: 'condition', titulo: 'Valor alto?', dados: { field: 'price', operator: 'greater_than', value: '1000' } },
     { op: 'ligar', de: 'start', para: 'oi' },
-    { op: 'ligar', de: 'oi', para: 'mover' },
+    { op: 'ligar', de: 'oi', para: 'valor' },
+    { op: 'ligar', de: 'valor', saida: 'Sim', para: 'mover' },
   ])
   const p = await roda('fluxo/criar.mjs', ['previa', `@${join(PASTA, 'novo.json')}`, '--nome=Entrada de lead'])
   confere(p.codigo === 0 && /pronto para criar/.test(p.saida) && /Proposta \(funil Vendas\) \(#27\)/.test(p.saida) && /Negociação criada/.test(p.saida), p.saida)
+  confere(/"value":"1000"/.test(p.saida) && !/#1000/.test(p.saida), `o value da condição não é ref de outro tipo de nó:\n${p.saida}`)
   const antes = banco.automations.length
   const g = await roda('fluxo/criar.mjs', ['gravar'])
   confere(g.codigo === 0 && /RASCUNHO e DESLIGADO/.test(g.saida) && banco.automations.length === antes + 1, g.saida)
@@ -755,8 +773,10 @@ await caso('editar-agente: 412 mostra o que a outra pessoa mudou e não regrava'
   confere(g.codigo === 2 && /prévia antes/.test(g.saida), `sem prévia nova, não grava: ${g.saida}`)
 })
 
-await caso('editar-agente: grava com If-Match sem campos removidos, e desfazer volta e confere', async () => {
+await caso('editar-agente: grava com If-Match sem campos removidos (mesmo com ETag instável), e desfazer volta e confere', async () => {
+  falhas.etagInstavel = 1
   await roda('agente/editar.mjs', ['ler', '600'])
+  confere(JSON.parse(le('cubo/trabalho/agente-600.json')).etag === '"instavel"', 'o ler pegou o ETag instável')
   const prompt = le('cubo/trabalho/agente-600.prompt.md')
   escreve('cubo/trabalho/agente-600.prompt.md', `${prompt}\nNova regra.`)
   const config = JSON.parse(le('cubo/trabalho/agente-600.config.json'))

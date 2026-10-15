@@ -55,7 +55,8 @@ export function armadilhas(fluxo, defs) {
       const soltas = saidas.filter((s) => !s.motor && !s.destinos.length && s.handle !== 'timeout' && s.handle !== 'exhausted')
       const ligadas = saidas.filter((s) => !s.motor && s.destinos.length)
       if (soltas.length && ligadas.length) {
-        acha(no, 'ramo_sem_destino', `As saídas ${soltas.map((s) => `“${s.rotulo}”`).join(', ')} não levam a nenhum passo: quem cair nelas fica parado, sem resposta.`, 'Ligue cada saída a um passo (nem que seja uma mensagem de “não entendi”).')
+        const varias = soltas.length > 1
+        acha(no, 'ramo_sem_destino', `${varias ? 'As saídas' : 'A saída'} ${soltas.map((s) => `“${s.rotulo}”`).join(', ')} não ${varias ? 'levam' : 'leva'} a nenhum passo: quem cair ${varias ? 'nelas' : 'nela'} termina o fluxo ali${(defs[no.type]?.requires || []).includes('conversation') ? ', sem resposta na conversa' : ''}.`, 'Confira se é isso mesmo; se não, ligue a saída a um passo.', 'nota')
       }
     }
   }

@@ -53,9 +53,15 @@ for (const [i, situacao] of situacoes.entries()) {
     await respeitarTeto()
     try {
       const r = await api('POST', `/api/agents/${id}/simulate`, { messages: historico }, { aviso: `o Cubo aceita ${POR_MINUTO} simulações por minuto` })
+      if (r?.status === 'error' || (!r?.reply && r?.error)) {
+        erros++
+        turnos.push({ cliente: String(fala), erro: `o agente deu erro: ${r?.error ?? 'sem resposta'}` })
+        console.log(`  cliente: ${fala}\n  ✘ o agente deu erro no Cubo: ${r?.error ?? 'sem resposta'}${/key|auth|401|incorrect/i.test(String(r?.error)) ? ' (a chave da integração de IA parece inválida: confira em Configurações → Integrações)' : ''}`)
+        break
+      }
       const custo = Number(r?.usage?.costCents ?? 0)
       custoTotal += custo
-      turnos.push({ cliente: String(fala), resposta: r?.reply ?? '', status: r?.status ?? null, toolCalls: (r?.toolCalls || []).map((t) => ({ name: t.name, args: t.args, simulated: t.simulated, error: t.error ?? null })), custoCentavos: custo, executionId: r?.executionId ?? null })
+      turnos.push({ cliente: String(fala), resposta: r?.reply ?? '', status: r?.status ?? null, fallback: r?.status === 'fallback_used', toolCalls: (r?.toolCalls || []).map((t) => ({ name: t.name, args: t.args, simulated: t.simulated, error: t.error ?? null })), custoCentavos: custo, executionId: r?.executionId ?? null })
       historico.push({ role: 'assistant', content: r?.reply ?? '' })
       console.log(`  cliente: ${fala}\n  agente:  ${r?.reply ?? ''}${(r?.toolCalls || []).length ? `\n  ferramentas: ${r.toolCalls.map((t) => `${t.name}${t.simulated ? ' (simulado)' : ''}`).join(', ')}` : ''}`)
     } catch (erro) {

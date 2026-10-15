@@ -32,9 +32,36 @@ export async function acharAgente(alvo) {
   process.exit(3)
 }
 
+// O ETag vem do GET SEM `include=refs`: no Cubo (main 54e924a94), o GET com `include=refs` devolve
+// outro ETag, que o PUT recusa com 412 mesmo sem ninguém ter mudado nada (medido no slot, 2026-10-15).
 export async function lerAgente(id) {
-  const { corpo, etag } = await api('GET', `/api/agents/${id}?include=refs`, undefined, { completo: true })
-  return { agente: desembrulhar(corpo), etag }
+  const { etag } = await api('GET', `/api/agents/${id}`, undefined, { completo: true })
+  const agente = desembrulhar(await api('GET', `/api/agents/${id}?include=refs`))
+  return { agente, etag }
+}
+
+// Igualdade de conteúdo, sem depender da ordem das chaves.
+export function mesmoConteudo(a, b) {
+  const ordenado = (v) => (Array.isArray(v) ? v.map(ordenado) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordenado(v[k])])) : v)
+  return JSON.stringify(ordenado(a)) === JSON.stringify(ordenado(b))
+}
+
+// PUT com If-Match. No Cubo (main 54e924a94) o ETag do agente às vezes muda sem o agente mudar (medido
+// no slot: o GET alterna entre dois ETags para o mesmo conteúdo), e o PUT volta 412 à toa. A trava
+// passa a ser o CONTEÚDO: no 412, relê; se o agente está igual ao que foi lido (`esperado`), grava de
+// novo com o ETag novo; se mudou de verdade, devolve o 412 para quem chamou mostrar à pessoa.
+export async function gravarAgente(id, corpo, etag, esperado) {
+  let marca = etag
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      return await api('PUT', `/api/agents/${id}`, corpo, { completo: true, cabecalhos: { 'If-Match': marca } })
+    } catch (erro) {
+      if (!(erro instanceof ErroApi) || erro.codigo !== 412 || tentativa >= 3) throw erro
+      const { agente, etag: nova } = await lerAgente(id)
+      if (!mesmoConteudo(corpoGravavel(agente), esperado)) throw erro
+      marca = nova
+    }
+  }
 }
 
 export async function contextoAgente(agente) {
@@ -70,6 +97,7 @@ export function descreverAgente(agente, ctx) {
     nome: agente.name,
     modelo: agente.model ?? null,
     integracao: agente.integrationId ? ctx.nomes.nome('integration', agente.integrationId) : null,
+    integracaoId: agente.integrationId ?? null,
     tamanhoPrompt: String(agente.systemPrompt ?? '').length,
     chips,
     followUp: descreverFollowUp(agente.followUpConfig, ctx.nomes),
@@ -105,6 +133,8 @@ export function juntarProblemasAgente({ descricao, validacao, usos, semFerrament
     if (chip.estado === 'ok' || jaDito.has(`chip ${chip.token}`)) continue
     problemas.push({ gravidade: chip.estado === 'desconhecido' ? 'erro' : 'aviso', codigo: `chip_${chip.estado.replace(/\s+/g, '_')}`, onde: `chip ${chip.token}`, mensagem: `O chip “${chip.rotulo}” está com problema: ${chip.estado}.`, oQueFazer: chip.estado === 'intent desligada' ? 'Ligue a intent em Agentes → Intents, ou tire o chip.' : chip.estado.startsWith('MCP') || chip.estado.startsWith('ferramenta') ? 'Reconecte a conexão MCP (Configurações → MCP) ou tire o chip.' : 'Escolha de novo um item que exista, ou tire o chip.' })
   }
+  const integracao = descricao.integracaoId ? nomes.item('integration', descricao.integracaoId) : null
+  if (integracao && integracao.status && integracao.status !== 'active') problemas.push({ gravidade: 'erro', codigo: 'integracao_desligada', onde: `integração ${nomes.nome('integration', descricao.integracaoId)}`, mensagem: `A integração de IA “${nomes.nome('integration', descricao.integracaoId)}” está desligada: o agente não responde ninguém enquanto ela estiver assim.`, oQueFazer: 'Ligue a integração no Cubo (Configurações → Integrações) e confira a chave do serviço.' })
   if (semFerramentas && descricao.chips.length) problemas.push({ gravidade: 'erro', codigo: 'modelo_sem_ferramentas', onde: `modelo ${descricao.modelo}`, mensagem: `O modelo ${descricao.modelo} não usa ferramentas: o agente roda sem nenhum dos ${descricao.chips.length} chips.`, oQueFazer: 'Troque o modelo por um que use ferramentas.' })
   if (descricao.legado.length) problemas.push({ gravidade: 'nota', codigo: 'legacy_field', onde: 'enabledTools', mensagem: `Campo antigo “enabledTools” preenchido (${descricao.legado.join(', ')}): não define ferramenta, só acrescenta contexto ao prompt.`, oQueFazer: 'As ferramentas vêm dos chips do prompt.' })
   if (descricao.inerte) problemas.push({ gravidade: 'nota', codigo: 'inert_field', onde: 'handoffTargets', mensagem: 'Há transferências antigas para outros agentes (handoffTargets): elas não fazem nada.', oQueFazer: 'Para passar para outro agente, use o follow-up ou um chip.' })
