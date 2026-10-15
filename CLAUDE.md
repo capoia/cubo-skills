@@ -74,7 +74,7 @@ no primeiro conserto. Não junte landing e migração ao motor sem motivo: elas 
 nos READMEs. Não tire.
 
 **As páginas de fluxo e agente têm a cara do Cubo** (pedido do Wellington, 2026-10-15, na 4.3.0): o
-logo, o azul `#2253F5` e os cinzas do tema do CRM, e no desenho as cores e os ícones (Lucide) do
+logo da Cubo Suite (preto, com o símbolo no azul, sobre a barra de cima sempre branca), o azul `#2253F5` e os cinzas do tema do CRM, e no desenho as cores e os ícones (Lucide) do
 editor de automações, mapeados em `motor/tipos.mjs`. Logo e fonte moram em `motor/marca/` e vão
 embutidos no HTML, que abre sem internet. **A fonte é a Barlow, não a DIN 2014 do CRM**: a DIN é paga
 e este repositório é público; a Barlow é OFL e parecida. O desenho é sempre de cima para baixo, em

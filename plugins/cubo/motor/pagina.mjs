@@ -9,8 +9,10 @@ import { icone } from './icones.mjs'
 
 export { esc }
 
+// O logo é o da Cubo Suite em preto, com o símbolo no azul: por isso a barra de cima é branca nos dois
+// temas, e o logo não vai no rodapé (no escuro, sumiria).
 const marca = (arquivo) => readFileSync(new URL(`./marca/${arquivo}`, import.meta.url))
-const LOGO = marca('logo.svg').toString('utf8').replace('<svg ', '<svg class="logo" aria-label="Cubo" role="img" ')
+const LOGO = marca('logo.svg').toString('utf8').replace('<svg ', '<svg class="logo" aria-label="Cubo Suite" role="img" ')
 const FONTES = [400, 600, 700].map((peso) => `@font-face{font-family:"Barlow";font-style:normal;font-weight:${peso};font-display:swap;src:url(data:font/woff2;base64,${marca(`barlow-${peso}.woff2`).toString('base64')}) format("woff2")}`).join('')
 
 // Texto do Claude: parágrafos separados por linha em branco, **negrito**, *itálico* e `código`. Nada de HTML
@@ -48,9 +50,9 @@ export function listaDeProblemas(problemas) {
     .join('')}</ul>`
 }
 
-// As cores do tema do CRM (oklch convertido) e a marca: azul #2253F5 e navy #252a3f.
-const CLARO = '--fundo:#f5f6fa;--papel:#fff;--tinta:#09090b;--suave:#71717a;--linha:#e4e4e7;--marca:#2253f5;--marca-texto:#1d47d6;--marca-fundo:#eaefff;--navy:#252a3f;--erro:#dc2626;--erro-fundo:#fdecec;--aviso:#b45309;--aviso-fundo:#fdf3e1;--nota:#52607a;--nota-fundo:#eef1f6;--ok:#047857;--ok-fundo:#e3f6ee;--sombra:0 1px 3px rgba(9,9,11,.06),0 1px 2px rgba(9,9,11,.04);--aresta:#a1a1aa'
-const ESCURO = '--fundo:#09090b;--papel:#18181b;--tinta:#fafafa;--suave:#a1a1aa;--linha:#2e2e33;--marca:#5b80ff;--marca-texto:#8ea6ff;--marca-fundo:#1a2140;--navy:#c9cfe8;--erro:#f87171;--erro-fundo:#3a1717;--aviso:#fbbf24;--aviso-fundo:#382a0d;--nota:#9fb0c8;--nota-fundo:#1f2530;--ok:#34d399;--ok-fundo:#0f2e22;--sombra:none;--aresta:#71717a'
+// As cores do tema do CRM (oklch convertido) e a marca: azul #2253F5.
+const CLARO = '--fundo:#f5f6fa;--papel:#fff;--tinta:#09090b;--suave:#71717a;--linha:#e4e4e7;--marca:#2253f5;--marca-texto:#1d47d6;--marca-fundo:#eaefff;--erro:#dc2626;--erro-fundo:#fdecec;--aviso:#b45309;--aviso-fundo:#fdf3e1;--nota:#52607a;--nota-fundo:#eef1f6;--ok:#047857;--ok-fundo:#e3f6ee;--sombra:0 1px 3px rgba(9,9,11,.06),0 1px 2px rgba(9,9,11,.04);--aresta:#a1a1aa'
+const ESCURO = '--fundo:#09090b;--papel:#18181b;--tinta:#fafafa;--suave:#a1a1aa;--linha:#2e2e33;--marca:#5b80ff;--marca-texto:#8ea6ff;--marca-fundo:#1a2140;--erro:#f87171;--erro-fundo:#3a1717;--aviso:#fbbf24;--aviso-fundo:#382a0d;--nota:#9fb0c8;--nota-fundo:#1f2530;--ok:#34d399;--ok-fundo:#0f2e22;--sombra:none;--aresta:#71717a'
 
 const CSS = `${FONTES}
 :root{${CLARO};--raio:10px;color-scheme:light}
@@ -59,10 +61,10 @@ const CSS = `${FONTES}
 *{box-sizing:border-box}
 body{margin:0;background:var(--fundo);color:var(--tinta);font:16px/1.6 "Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 .ic{flex:none;vertical-align:-2px}
-.barra{background:var(--papel);border-bottom:1px solid var(--linha)}
+.barra{background:#fff;border-bottom:1px solid var(--linha)}
 .barra div{max-width:1040px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.logo{height:36px;width:auto;color:var(--navy);display:block}
-.barra .tipo-doc{color:var(--suave);font-size:.9rem;font-weight:600;letter-spacing:.02em}
+.logo{height:30px;width:auto;display:block}
+.barra .tipo-doc{color:#71717a;font-size:.9rem;font-weight:600;letter-spacing:.02em}
 main{max-width:1040px;margin:0 auto;padding:28px 16px 64px}
 .kicker{color:var(--marca-texto);font-weight:600;font-size:.9rem;letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px}
 h1{font-size:2rem;line-height:1.15;margin:0 0 12px;font-weight:700;letter-spacing:-.01em}
@@ -143,7 +145,6 @@ tr:last-child td{border-bottom:0}
 pre{white-space:pre-wrap;word-break:break-word;background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:14px;font-size:.88rem}
 details>summary{cursor:pointer;font-weight:600;color:var(--marca-texto)}
 footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--linha);color:var(--suave);font-size:.85rem;display:flex;gap:14px;align-items:flex-start}
-footer .logo{height:22px;flex:none}
 @media (max-width:600px){main{padding:20px 16px 48px}h1{font-size:1.6rem}.indice{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.indice li{flex:none}.rolagem .desenho{min-width:560px}.fala{max-width:92%}.passo{grid-template-columns:1fr}.passo .ic-caixa{display:none}.barra .tipo-doc{display:none}}
 `
 
@@ -170,7 +171,7 @@ ${etiquetas.length ? `<div class="etiquetas">${etiquetas.map(etiqueta).join('')}
 <ul class="indice">${visiveis.map((s) => `<li><a href="#${esc(s.id)}">${esc(s.titulo)}</a></li>`).join('')}</ul>
 <div class="aviso-topo">${icone('triangle-alert', { tamanho: 16 })}<span>${esc(AVISO)}</span></div>
 ${visiveis.map((s) => `<section id="${esc(s.id)}"><h2>${esc(s.titulo)}</h2>${s.html}</section>`).join('\n')}
-<footer>${LOGO}<span>Gerado em ${esc(new Date().toLocaleString('pt-BR'))} pelas skills do Cubo. ${esc(AVISO)}</span></footer>
+<footer><span>Gerado em ${esc(new Date().toLocaleString('pt-BR'))} pelas skills do Cubo. ${esc(AVISO)}</span></footer>
 </main>
 <script>${SCRIPT}</script>
 </body>
