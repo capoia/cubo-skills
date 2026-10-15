@@ -51,6 +51,7 @@ plugins/cubo/
   skills/migrar-conta/            mesma forma; scripts sem dependência nenhuma
   skills/{explicar,criar,editar}-{fluxo,agente}/   só SKILL.md e README.md: o trabalho é do motor
   motor/               os scripts compartilhados pelas seis skills de fluxo e agente (só Node, sem dependência)
+    marca/             o logo do Cubo e a fonte Barlow (OFL), embutidos nas páginas
   referencias/         as referências compartilhadas por elas (acesso, mudanças, itens, chips, simulação, escrita)
 docs/migrar-conta/               LEDGER do desenvolvimento e o briefing da API para o cubo-crm
 testes/fumaca.mjs    teste dos scripts da landing contra um Cubo de mentira
@@ -71,6 +72,15 @@ no primeiro conserto. Não junte landing e migração ao motor sem motivo: elas 
 **Fluxos e agentes têm aviso de responsabilidade** (pedido do Wellington, 2026-10-15): o texto mora em
 `motor/aviso.mjs` e aparece no começo das quatro skills que escrevem, nas confirmações, nas páginas e
 nos READMEs. Não tire.
+
+**As páginas de fluxo e agente têm a cara do Cubo** (pedido do Wellington, 2026-10-15, na 4.3.0): o
+logo, o azul `#2253F5` e os cinzas do tema do CRM, e no desenho as cores e os ícones (Lucide) do
+editor de automações, mapeados em `motor/tipos.mjs`. Logo e fonte moram em `motor/marca/` e vão
+embutidos no HTML, que abre sem internet. **A fonte é a Barlow, não a DIN 2014 do CRM**: a DIN é paga
+e este repositório é público; a Barlow é OFL e parecida. O desenho é sempre de cima para baixo, em
+camadas (`arranjo` no `desenho.mjs`), e não usa as posições do editor: com elas a página ficava mais
+larga que a tela e as setas cruzavam os nós. Depois da página, o `pagina` imprime o bloco
+**RESPOSTA PARA A PESSOA** (`motor/resposta.mjs`), com tabelas, que o Claude copia na conversa.
 
 A exceção é o **`plugins/cubo/cubo.json`**, a configuração que vale para todas as skills: hoje, o
 endereço do Cubo (`https://next.cubosuite.com.br`). A pessoa **não informa o endereço**: a chave de

@@ -7,7 +7,8 @@ import { existsSync } from 'node:fs'
 import { abrirNoSistema, argumentos, falha, gravarJson, gravarTexto, lerJson, pasta } from '../lib.mjs'
 import { quemChamaFluxo, varrer } from '../usos.mjs'
 import { caminhoEmTexto, caminhos } from './caminhos.mjs'
-import { acharFluxo, contarProblemas, contexto, juntarProblemas, lerFluxo, paginaDoFluxo, problemasEmTexto, validar } from './comum.mjs'
+import { blocoDaResposta, contagem } from '../resposta.mjs'
+import { acharFluxo, contarProblemas, contexto, etiquetasDoFluxo, juntarProblemas, lerFluxo, paginaDoFluxo, problemasEmTexto, validar } from './comum.mjs'
 import { descrever, diferencas, roteiro } from './descrever.mjs'
 import { nosDoFluxo } from './modelo.mjs'
 
@@ -68,11 +69,24 @@ function paginaCli(id) {
   const textoDoClaude = lerJson(arquivoTexto, {})
   const faltam = dados.descricao.passos.filter((p) => p.tipo !== 'start' && !(textoDoClaude.passos || {})[p.n]).map((p) => p.n)
   if (!textoDoClaude.resumo) falha(`o texto não tem "resumo". Escreva o resumo em ${arquivoTexto} e rode de novo.`, 2)
-  const html = paginaDoFluxo({ dados, textoDoClaude, titulo: `Fluxo: ${dados.descricao.nome}`, subtitulo: `Automação nº ${id} · ${dados.descricao.ligado ? 'ligada' : 'desligada'}${dados.nuncaPublicado ? ' · nunca publicada' : ''}` })
+  const { descricao } = dados
+  const versao = dados.nuncaPublicado ? { texto: 'Nunca publicado: rascunho', tom: 'aviso', icone: 'triangle-alert' } : dados.diferencas && !dados.diferencas.igual ? { texto: 'Publicado, com mudanças não publicadas', tom: 'aviso', icone: 'file-pen' } : { texto: 'Versão publicada', tom: 'neutro', icone: 'file-check' }
+  const html = paginaDoFluxo({ dados, textoDoClaude, titulo: descricao.nome, subtitulo: `Explicação da automação nº ${id}`, etiquetas: etiquetasDoFluxo(descricao, dados.problemas, [versao]) })
   const arquivo = pasta('explicacoes', `fluxo-${id}.html`)
   gravarTexto(arquivo, html)
   abrirNoSistema(arquivo)
   console.log(`Página pronta: ${arquivo}`)
+  const passos = descricao.passos.filter((p) => p.tipo !== 'start').length
+  console.log('\n' + blocoDaResposta({
+    titulo: `⚡ ${descricao.nome} · automação nº ${id}`,
+    fatos: {
+      cabecalho: ['Situação', 'Começa quando', 'Passos', 'Problemas'],
+      valores: [`${descricao.ligado ? '✅ Ligado' : '⏸️ Desligado'} · ${versao.texto.toLowerCase()}`, descricao.gatilhos.map((g) => g.rotulo).join(', ') || (descricao.passos.some((p) => p.tipo === 'trigger') ? 'pelo gatilho do passo 1' : 'nenhum gatilho'), passos, contagem(contarProblemas(dados.problemas))],
+    },
+    problemas: dados.problemas,
+    arquivo,
+    proximo: `⟨se houver o que corrigir: “Posso ajustar com /cubo:editar-fluxo ${id}: …”; senão, apague esta linha⟩`,
+  }))
   if (faltam.length) console.log(`(sem frase para os passos ${faltam.join(', ')}: usei a descrição do catálogo)`)
 }
 

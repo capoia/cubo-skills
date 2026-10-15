@@ -39,5 +39,6 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
    [escrever-explicacao.md](${CLAUDE_PLUGIN_ROOT}/referencias/escrever-explicacao.md).
 4. **Página.** `node "<motor>/fluxo/explicar.mjs" pagina <id>`: gera e abre a página com o desenho,
    os passos, os caminhos e os problemas.
-5. **Responder.** Na conversa: o resumo, quantos problemas (e os que mudam o resultado, em uma
-   frase cada) e o caminho da página. Ofereça `/cubo:editar-fluxo` se houver o que corrigir.
+5. **Responder.** Copie o bloco **RESPOSTA PARA A PESSOA** que o `pagina` imprime (tabelas, resumo,
+   pontos de atenção, caminho da página), completando o que está entre ⟨ ⟩ como em
+   [escrever-explicacao.md](${CLAUDE_PLUGIN_ROOT}/referencias/escrever-explicacao.md). Nada de parágrafo longo.

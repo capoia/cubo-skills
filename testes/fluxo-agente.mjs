@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const MOTOR = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'cubo', 'motor')
 const PASTA = mkdtempSync(join(tmpdir(), 'cubo-fluxo-agente-'))
@@ -546,6 +546,34 @@ await caso('explicar-fluxo: página sem nenhum endereço externo, com desenho, p
   confere(!/(src|href)="https?:/.test(html) && !/@import/.test(html), 'nada externo')
   confere(!html.includes('<script>alert(1)</script>') && html.includes('&lt;script&gt;'), 'texto escapado')
   confere(/não se responsabiliza/.test(html) && /exhausted_captura/.test(html) && /<strong>negociação<\/strong>/.test(html), 'aviso e problemas')
+  confere(/class="logo"/.test(html) && /font-family:"Barlow"/.test(html) && /data:font\/woff2;base64,/.test(html) && /#2253f5/i.test(html), 'cara do Cubo: logo, Barlow embutida e o azul')
+  confere(/class="etiqueta /.test(html) && /class="ir" href="#passo-/.test(html) && /class="cabeca" style="fill:#/.test(html), 'etiquetas, botões de passo e nós com a cor do tipo')
+  // O bloco para a conversa: fatos em tabela, pontos de atenção em tabela e o caminho da página.
+  confere(/RESPOSTA PARA A PESSOA/.test(r.saida) && r.saida.includes('| Situação | Começa quando | Passos | Problemas |') && r.saida.includes('| Tipo | Onde | O que acontece |') && r.saida.includes('fluxo-701.html'), r.saida)
+})
+
+await caso('desenho: de cima para baixo, volta pela faixa, passo solto embaixo, e cabe na largura', async () => {
+  const { arranjo, desenho } = await import(pathToFileURL(join(MOTOR, 'desenho.mjs')).href)
+  const seg = (d) => [{ handle: null, rotulo: 'Seguir', motor: false, destinos: d }, { handle: 'ocupada', rotulo: 'Conversa ocupada', motor: true, destinos: [] }]
+  const sim = (sim, nao) => [{ handle: 'yes', rotulo: 'Sim', motor: false, destinos: sim }, { handle: 'no', rotulo: 'Não', motor: false, destinos: nao }]
+  const p = (n, tipo, saidas, extra = {}) => ({ n, id: `n${n}`, tipo, rotuloTipo: tipo, titulo: `Passo ${n} <b>`, saidas, irPara: null, orfao: false, ...extra })
+  const galhos = {
+    gatilhos: [{ tipo: 'message_received', rotulo: 'Mensagem recebida' }],
+    passos: [p(1, 'start', seg([2])), p(2, 'send_message', seg([3])), p(3, 'condition', sim([4], [])), p(4, 'condition', sim([5], [2])), p(5, 'end_flow', seg([])), p(6, 'tag_conversation', seg([]), { orfao: true })],
+  }
+  const { posicoes, ligacoes, voltas } = arranjo(galhos)
+  const y = (n) => posicoes.get(n).y
+  confere(y(1) < y(2) && y(2) < y(3) && y(3) < y(4) && y(4) < y(5), 'cada passo abaixo de quem leva a ele')
+  confere(y(6) > y(5), 'o passo solto fica embaixo do fluxo principal')
+  confere([...voltas].some((l) => l.de === 4 && l.para === 2), 'a ligação de volta é reconhecida')
+  confere(ligacoes.some((l) => l.de === 3 && l.para === null && l.rotulo === 'Não · fim'), 'saída sem destino vira "Não · fim"')
+  const svg = desenho(galhos, new Set(['n4']))
+  confere(svg.includes('Passo 2 &lt;b&gt;') && !svg.includes('<b>'), 'título escapado')
+  confere(/class="no problema"/.test(svg) && /class="alerta"/.test(svg), 'passo com problema marcado')
+  // Uma linha reta de 18 passos, como o fluxo que motivou a mudança: o editor espalhava para os lados.
+  const reta = { gatilhos: [], passos: Array.from({ length: 18 }, (_, i) => p(i + 1, i ? 'update_deal' : 'start', seg(i < 17 ? [i + 2] : []))) }
+  const largura = Number(desenho(reta).match(/viewBox="0 0 (\d+)/)[1])
+  confere(largura < 400, `uma coluna só, e não ${largura}px`)
 })
 
 await caso('explicar-fluxo: nunca publicado explica o rascunho e avisa', async () => {
@@ -596,6 +624,8 @@ await caso('explicar-agente: página com conversas, ferramentas, onde é usado e
   const html = le('cubo/explicacoes/agente-600.html')
   confere(/Quero uma proposta/.test(html) && /simulado: nada mudou/.test(html) && /WhatsApp Vendas/.test(html) && /Passa para uma pessoa/.test(html), 'conteúdo')
   confere(/&#123;|\{\{tool:move_deal_stage/.test(html) && !/(src|href)="https?:/.test(html) && /não se responsabiliza/.test(html), 'escapado, local e com aviso')
+  confere(/class="logo"/.test(html) && /class="etiqueta ok"/.test(html) && /class="fala user"/.test(html), 'cara do Cubo, situação dos chips em etiqueta e balões')
+  confere(/RESPOSTA PARA A PESSOA/.test(r.saida) && r.saida.includes('| Modelo | Ferramentas | Lembretes | Onde é usado | Exemplos | Problemas |') && r.saida.includes('agente-600.html'), r.saida)
 })
 
 // --- itens que faltam
