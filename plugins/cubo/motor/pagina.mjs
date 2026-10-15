@@ -5,13 +5,13 @@ import { esc } from './desenho.mjs'
 
 export { esc }
 
-// Texto do Claude: parágrafos separados por linha em branco, **negrito** e `código`. Nada de HTML
+// Texto do Claude: parágrafos separados por linha em branco, **negrito**, *itálico* e `código`. Nada de HTML
 // cru vindo de fora (o texto pode citar prompt de cliente).
 export function texto(conteudo) {
   return String(conteudo ?? '')
     .split(/\n\s*\n/)
     .filter((p) => p.trim())
-    .map((p) => `<p>${esc(p.trim()).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>')}</p>`)
+    .map((p) => `<p>${esc(p.trim()).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>')}</p>`)
     .join('')
 }
 
