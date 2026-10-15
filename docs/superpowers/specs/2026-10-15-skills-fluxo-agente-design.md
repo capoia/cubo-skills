@@ -45,6 +45,20 @@ pela conversa sem quebrar nada que está no ar, e consegue voltar atrás.
    editar fluxo ou agente, tag, funil, etapa, campo, template etc. que faltarem são criados pela
    API, com a confirmação da pessoa (ver "Itens que faltam").
 
+## Aviso de responsabilidade
+
+Pedido do Wellington (2026-10-15): **o Cubo não é responsável pelos resultados dos fluxos e agentes.**
+As skills ajudam a criar, editar e entender; tudo tem que ser avaliado e aprovado por uma pessoa
+antes de ir para clientes de verdade. O texto (único, em `motor/aviso.mjs`):
+
+> **Atenção:** esta skill ajuda a criar, editar e entender fluxos e agentes, mas não substitui a
+> revisão humana. O Cubo não se responsabiliza pelos resultados de fluxos e agentes criados ou
+> alterados com ela. Revise e teste tudo antes de publicar ou ligar.
+
+Onde aparece: no começo das quatro skills que escrevem (o Claude repassa à pessoa), na pergunta
+"Posso gravar?" e nas de publicar e ligar, no rodapé de toda página de explicação e de prévia, e no
+`README.md` de cada skill.
+
 ## Arquitetura
 
 ```
