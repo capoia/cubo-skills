@@ -550,6 +550,43 @@ await caso('explicar-fluxo: nunca publicado explica o rascunho e avisa', async (
   confere(r.codigo === 0 && /NUNCA FOI PUBLICADO/.test(r.saida) && /no_trigger_or_action/.test(r.saida), r.saida)
 })
 
+await caso('explicar-agente: chips viram frases com nomes, validação, intent desligada e onde é usado', async () => {
+  const r = await roda('agente/explicar.mjs', ['preparar', 'sdr'])
+  confere(r.codigo === 0, r.saida)
+  const s = r.saida
+  confere(/Mover etapa \(Funil: Vendas; Etapa: Proposta \(funil Vendas\)\)/.test(s), `chip com nomes:\n${s}`)
+  confere(/Segunda via.*\[INTENT DESLIGADA\]/.test(s) && /\(intent_disabled\)/.test(s), `intent desligada:\n${s}`)
+  confere(/\(unknown_chip\)/.test(s) && /Já estava gravado/.test(s), `chip que sumiu vira aviso de já gravado:\n${s}`)
+  confere(/canal “WhatsApp Vendas” \(#100\)/.test(s) && /agente “Suporte” \(#601\)/.test(s), `onde é usado:\n${s}`)
+  confere(/inicia o fluxo Boas-vindas/.test(s), `follow-up com nome do fluxo:\n${s}`)
+  confere(/⟦Responder pela base \(Base: Perguntas frequentes\)⟧/.test(s), `prompt anotado:\n${s}`)
+})
+
+await caso('simular: uma fala por vez, espera no teto por minuto e no 429, guarda custo e conversa', async () => {
+  escreve('situacoes.json', [
+    { titulo: 'Pede proposta', mensagens: ['Oi', 'Quero uma proposta'] },
+    { titulo: 'Fora do roteiro', mensagens: ['Vocês vendem pizza?'] },
+  ])
+  falhas.simulate429 = 1
+  const antes = chamadas.simulacoes
+  const inicio = Date.now()
+  const r = await roda('agente/simular.mjs', ['600', `@${join(PASTA, 'situacoes.json')}`], { env: { CUBO_SIMULAR_POR_MINUTO: '2', CUBO_SIMULAR_JANELA_MS: '1500' } })
+  confere(r.codigo === 0, r.saida)
+  confere(chamadas.simulacoes - antes === 3 && Date.now() - inicio >= 1400, `3 falas, com espera na janela: ${chamadas.simulacoes - antes} em ${Date.now() - inicio} ms`)
+  const ex = JSON.parse(le('cubo/explicacoes/agente-600.exemplos.json')).exemplos
+  confere(ex.length === 2 && ex[0].turnos[1].toolCalls[0].simulated === true && ex[0].turnos[0].custoCentavos === 0.4, JSON.stringify(ex))
+  confere(/Custo total: 1,20 centavos/.test(r.saida) && /nada mudou na conta/.test(r.saida), r.saida)
+})
+
+await caso('explicar-agente: página com conversas, ferramentas, onde é usado e o prompt escapado', async () => {
+  escreve('cubo/explicacoes/agente-600.texto.json', { resumo: 'O SDR atende o WhatsApp de vendas.', explicacao: 'Ele responde dúvidas e move para Proposta.', chips: { '{{tool:transfer_to_human}}': 'Passa para uma pessoa.' } })
+  const r = await roda('agente/explicar.mjs', ['pagina', '600'])
+  confere(r.codigo === 0, r.saida)
+  const html = le('cubo/explicacoes/agente-600.html')
+  confere(/Quero uma proposta/.test(html) && /simulado: nada mudou/.test(html) && /WhatsApp Vendas/.test(html) && /Passa para uma pessoa/.test(html), 'conteúdo')
+  confere(/&#123;|\{\{tool:move_deal_stage/.test(html) && !/(src|href)="https?:/.test(html) && /não se responsabiliza/.test(html), 'escapado, local e com aviso')
+})
+
 servidor.close()
 console.log(`fumaça fluxo-agente em ${process.platform} (Node ${process.versions.node})`)
 console.log(resultados.join('\n'))
