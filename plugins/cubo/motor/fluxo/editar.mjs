@@ -124,13 +124,8 @@ async function gravar(id) {
     console.log(`Para voltar atrás: editar.mjs desfazer ${id}`)
   } catch (erro) {
     if (!(erro instanceof ErroApi) || erro.codigo !== 412) throw erro
-    const { fluxo: rascunho, etag } = await lerFluxo(id, { versao: 'draft' })
-    // 412 sem mudança de verdade (o ETag mudou, o rascunho não): grava de novo com o ETag novo.
-    if (JSON.stringify(corpoDoPut(rascunho)) === JSON.stringify(corpoDoPut(t.rascunho))) {
-      gravarJson(arquivoTrabalho(id), { ...t, etag })
-      return gravar(id)
-    }
     // Alguém mudou no meio: relê, reaplica a MESMA lista e mostra de novo. Não grava sozinho.
+    const { fluxo: rascunho, etag } = await lerFluxo(id, { versao: 'draft' })
     const novoT = { ...t, etag, rascunho, novo: null }
     let p
     try {

@@ -109,7 +109,7 @@ async function gravar(id) {
   if (t.gravadoEm && t.gravadoEm > (t.previaEm ?? '')) falha('esta prévia já foi gravada. Para mudar mais, rode ler e previa de novo.', 2)
   if ((t.validacao?.errors || []).length) falha('a prévia tem erro. Corrija e rode a prévia de novo.', 2)
   try {
-    const { corpo, etag } = await gravarAgente(id, t.novo, t.etag, t.agente)
+    const { corpo, etag } = await gravarAgente(id, t.novo, t.etag)
     const gravado = desembrulhar(corpo)
     gravarJson(arquivoTrabalho(id), { ...t, etag, agente: corpoGravavel(gravado), gravadoEm: new Date().toISOString(), copiaGravada: t.copia })
     console.log(`Gravado: o agente #${id} já está com a versão nova (agente não tem rascunho).`)
@@ -133,9 +133,9 @@ async function gravar(id) {
 async function desfazer(id, opcoes) {
   const trabalhoAtual = lerJson(arquivoTrabalho(id), null)
   const { conteudo: copia, arquivo, quando } = pegarCopia('agente', id, opcoes.copia ?? (trabalhoAtual?.copiaGravada ? basename(trabalhoAtual.copiaGravada) : null))
-  const { agente: atual, etag } = await lerAgente(id)
+  const { etag } = await lerAgente(id)
   console.log(`Voltando o agente #${id} à cópia de ${quando.replace('T', ' ')} (${arquivo}).`)
-  await gravarAgente(id, corpoGravavel(copia.corpo), etag, corpoGravavel(atual))
+  await gravarAgente(id, corpoGravavel(copia.corpo), etag)
   const { agente } = await lerAgente(id)
   const diferencas = diferencaDeConfig(corpoGravavel(copia.corpo), corpoGravavel(agente), [])
   if (diferencas.length) falha(`gravei, mas o agente ficou diferente da cópia em: ${diferencas.map((d) => d.chave).join(', ')}. Confira no Cubo.`, 1)

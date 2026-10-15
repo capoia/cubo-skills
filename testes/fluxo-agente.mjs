@@ -127,7 +127,7 @@ const banco = {
   lostreasons: [],
 }
 const chamadas = { catalogoAutomacoes: [], catalogoAgentes: [], simulacoes: 0, puts: [], posts: [] }
-const falhas = { simulate429: 0, putMudaNoMeio: false, etagInstavel: 0 }
+const falhas = { simulate429: 0, putMudaNoMeio: false }
 
 const etagDe = (objeto) => `"${createHash('sha1').update(JSON.stringify(objeto)).digest('hex').slice(0, 16)}"`
 const proximo = () => ++proximoId
@@ -424,11 +424,6 @@ const servidor = createServer(async (req, res) => {
       if (!exige('agents', 'read')) return
       const objeto = structuredClone(ag)
       if (url.searchParams.get('include') === 'refs') objeto.refs = extrairRefs(objeto)
-      // O Cubo de verdade às vezes devolve outro ETag para o mesmo agente (medido no slot, 2026-10-15).
-      if (falhas.etagInstavel > 0 && !url.searchParams.get('include')) {
-        falhas.etagInstavel--
-        return responde(200, objeto, { ETag: '"instavel"' })
-      }
       return responde(200, objeto, { ETag: etagDe(ag) })
     }
     if (req.method === 'PUT') {
@@ -775,10 +770,8 @@ await caso('editar-agente: 412 mostra o que a outra pessoa mudou e não regrava'
   confere(g.codigo === 2 && /prévia antes/.test(g.saida), `sem prévia nova, não grava: ${g.saida}`)
 })
 
-await caso('editar-agente: grava com If-Match sem campos removidos (mesmo com ETag instável), e desfazer volta e confere', async () => {
-  falhas.etagInstavel = 1
+await caso('editar-agente: grava com If-Match sem campos removidos, e desfazer volta e confere', async () => {
   await roda('agente/editar.mjs', ['ler', '600'])
-  confere(JSON.parse(le('cubo/trabalho/agente-600.json')).etag === '"instavel"', 'o ler pegou o ETag instável')
   const prompt = le('cubo/trabalho/agente-600.prompt.md')
   escreve('cubo/trabalho/agente-600.prompt.md', `${prompt}\nNova regra.`)
   const config = JSON.parse(le('cubo/trabalho/agente-600.config.json'))

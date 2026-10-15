@@ -32,36 +32,14 @@ export async function acharAgente(alvo) {
   process.exit(3)
 }
 
-// O ETag vem do GET SEM `include=refs`: no Cubo (main 54e924a94), o GET com `include=refs` devolve
-// outro ETag, que o PUT recusa com 412 mesmo sem ninguém ter mudado nada (medido no slot, 2026-10-15).
 export async function lerAgente(id) {
-  const { etag } = await api('GET', `/api/agents/${id}`, undefined, { completo: true })
-  const agente = desembrulhar(await api('GET', `/api/agents/${id}?include=refs`))
-  return { agente, etag }
+  const { corpo, etag } = await api('GET', `/api/agents/${id}?include=refs`, undefined, { completo: true })
+  return { agente: desembrulhar(corpo), etag }
 }
 
-// Igualdade de conteúdo, sem depender da ordem das chaves.
-export function mesmoConteudo(a, b) {
-  const ordenado = (v) => (Array.isArray(v) ? v.map(ordenado) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, ordenado(v[k])])) : v)
-  return JSON.stringify(ordenado(a)) === JSON.stringify(ordenado(b))
-}
-
-// PUT com If-Match. No Cubo (main 54e924a94) o ETag do agente às vezes muda sem o agente mudar (medido
-// no slot: o GET alterna entre dois ETags para o mesmo conteúdo), e o PUT volta 412 à toa. A trava
-// passa a ser o CONTEÚDO: no 412, relê; se o agente está igual ao que foi lido (`esperado`), grava de
-// novo com o ETag novo; se mudou de verdade, devolve o 412 para quem chamou mostrar à pessoa.
-export async function gravarAgente(id, corpo, etag, esperado) {
-  let marca = etag
-  for (let tentativa = 1; ; tentativa++) {
-    try {
-      return await api('PUT', `/api/agents/${id}`, corpo, { completo: true, cabecalhos: { 'If-Match': marca } })
-    } catch (erro) {
-      if (!(erro instanceof ErroApi) || erro.codigo !== 412 || tentativa >= 3) throw erro
-      const { agente, etag: nova } = await lerAgente(id)
-      if (!mesmoConteudo(corpoGravavel(agente), esperado)) throw erro
-      marca = nova
-    }
-  }
+// PUT com If-Match: 412 quer dizer que alguém mudou o agente depois da leitura.
+export async function gravarAgente(id, corpo, etag) {
+  return api('PUT', `/api/agents/${id}`, corpo, { completo: true, cabecalhos: { 'If-Match': etag } })
 }
 
 export async function contextoAgente(agente) {
