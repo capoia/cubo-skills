@@ -1,7 +1,8 @@
 // Peças comuns do motor das skills de fluxo e agente. Roda igual em Windows, macOS e Linux, só com o
 // Node (20.9+): nada de dependência, nada de comando de shell.
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 
 export function falha(mensagem, codigo = 1) {
@@ -107,4 +108,20 @@ export function abrirNoSistema(alvo, { editor = false } = {}) {
 
 export function gravarTexto(arquivo, texto) {
   writeFileSync(arquivo, texto)
+}
+
+// O arquivo foi chamado direto (`node arquivo.mjs`) e não importado? Compara pelo caminho real:
+// no macOS o /tmp é link, e no Windows a letra do disco muda de caixa.
+export function ehPrincipal(urlDoModulo) {
+  if (!process.argv[1]) return false
+  const real = (caminho) => {
+    try {
+      return realpathSync(caminho)
+    } catch {
+      return resolve(caminho)
+    }
+  }
+  const a = real(fileURLToPath(urlDoModulo))
+  const b = real(process.argv[1])
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
 }
