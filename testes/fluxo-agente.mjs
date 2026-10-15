@@ -700,7 +700,9 @@ await caso('editar-fluxo: grava com If-Match, publica, e desfazer volta rascunho
   confere(p.codigo === 0 && /LIGADO: já vale/.test(p.saida) && a.published.nodes.some((n) => n.data?.label === 'Marca quente'), p.saida)
   const d = await roda('fluxo/editar.mjs', ['desligar', '701'])
   confere(d.codigo === 0 && a.status === 'inactive', d.saida)
-  const copia = JSON.parse(readFileSync(JSON.parse(le('cubo/trabalho/fluxo-701.json')).copia, 'utf8'))
+  const copia = JSON.parse(readFileSync(JSON.parse(le('cubo/trabalho/fluxo-701.json')).copiaGravada, 'utf8'))
+  // Reler para conferir (o Claude faz isso) guarda outra cópia, já com a mudança: o desfazer não pode usá-la.
+  confere((await roda('fluxo/editar.mjs', ['ler', '701'])).codigo === 0, 'reler')
   const semItem = await roda('fluxo/editar.mjs', ['desfazer', '701'])
   confere(semItem.codigo === 1 && /não aceita gravar a cópia de volta/.test(semItem.saida) && !/at api/.test(semItem.saida), semItem.saida)
   banco.stages.push({ id: 999, name: 'Recriada', pipeId: 30 })
@@ -787,6 +789,7 @@ await caso('editar-agente: grava com If-Match sem campos removidos (mesmo com ET
   confere(r.codigo === 0 && put.ifMatch && !('enabledMcpConnections' in put.corpo) && !('allowKnowledgeWriting' in put.corpo) && !('handoffTargets' in put.corpo), `${r.saida}\n${JSON.stringify(put)}`)
   const ag = banco.agents.find((a) => a.id === 600)
   confere(ag.systemPrompt.endsWith('Nova regra.'), 'gravou')
+  confere((await roda('agente/editar.mjs', ['ler', '600'])).codigo === 0, 'reler para conferir')
   const d = await roda('agente/editar.mjs', ['desfazer', '600'])
   confere(d.codigo === 0 && /conferido/.test(d.saida) && ag.systemPrompt === prompt, d.saida)
 })

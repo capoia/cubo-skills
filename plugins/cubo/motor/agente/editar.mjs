@@ -15,6 +15,7 @@ import { contarProblemas, problemasEmTexto } from '../fluxo/comum.mjs'
 import { fraseDoChip } from './chips.mjs'
 import { acharAgente, contextoAgente, corpoGravavel, descreverAgente, gravarAgente, juntarProblemasAgente, lerAgente, modeloSemFerramentas, paginaDoAgente, roteiroAgente, validarAgente } from './comum.mjs'
 import { diferencaDeConfig, diferencaEmTexto } from './diferenca.mjs'
+import { basename } from 'node:path'
 
 const arquivoTrabalho = (id) => pasta('trabalho', `agente-${id}.json`)
 const arquivoPrompt = (id) => pasta('trabalho', `agente-${id}.prompt.md`)
@@ -36,7 +37,9 @@ async function ler(alvo) {
   gravarTexto(arquivoPrompt(id), systemPrompt ?? '')
   gravarJson(arquivoConfig(id), config)
   const usos = quemUsaAgente(await varrer(), id)
-  gravarJson(arquivoTrabalho(id), { id, etag, agente: corpo, lidoEm: new Date().toISOString(), copia, usos, novo: null })
+  // A cópia da última GRAVAÇÃO sobrevive a um `ler` novo: é dela que o `desfazer` volta.
+  const anterior = lerJson(arquivoTrabalho(id), null)
+  gravarJson(arquivoTrabalho(id), { id, etag, agente: corpo, lidoEm: new Date().toISOString(), copia, copiaGravada: anterior?.copiaGravada ?? null, usos, novo: null })
   const ctx = await contextoAgente(agente)
   console.log(roteiroAgente(descreverAgente(agente, ctx), { usos }))
   console.log(`\nCópia de segurança guardada: ${copia}`)
@@ -108,7 +111,7 @@ async function gravar(id) {
   try {
     const { corpo, etag } = await gravarAgente(id, t.novo, t.etag, t.agente)
     const gravado = desembrulhar(corpo)
-    gravarJson(arquivoTrabalho(id), { ...t, etag, agente: corpoGravavel(gravado), gravadoEm: new Date().toISOString() })
+    gravarJson(arquivoTrabalho(id), { ...t, etag, agente: corpoGravavel(gravado), gravadoEm: new Date().toISOString(), copiaGravada: t.copia })
     console.log(`Gravado: o agente #${id} já está com a versão nova (agente não tem rascunho).`)
     for (const aviso of corpo?.warnings || []) console.log(`  aviso do Cubo: ${aviso.message}`)
     console.log(`Para voltar atrás: editar.mjs desfazer ${id}`)
@@ -128,7 +131,8 @@ async function gravar(id) {
 }
 
 async function desfazer(id, opcoes) {
-  const { conteudo: copia, arquivo, quando } = pegarCopia('agente', id, opcoes.copia)
+  const trabalhoAtual = lerJson(arquivoTrabalho(id), null)
+  const { conteudo: copia, arquivo, quando } = pegarCopia('agente', id, opcoes.copia ?? (trabalhoAtual?.copiaGravada ? basename(trabalhoAtual.copiaGravada) : null))
   const { agente: atual, etag } = await lerAgente(id)
   console.log(`Voltando o agente #${id} à cópia de ${quando.replace('T', ' ')} (${arquivo}).`)
   await gravarAgente(id, corpoGravavel(copia.corpo), etag, corpoGravavel(atual))

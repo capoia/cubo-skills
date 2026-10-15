@@ -16,6 +16,7 @@ import { descrever, diferencas, refsLocais, roteiro } from './descrever.mjs'
 import { ErroMudanca, aplicarMudancas, conferirLimites } from './mudancas.mjs'
 import { nosDoFluxo } from './modelo.mjs'
 import { IMPEDEM_GRAVAR } from './regras.mjs'
+import { basename } from 'node:path'
 import { esc } from '../pagina.mjs'
 
 const USO = `uso:
@@ -42,7 +43,10 @@ async function ler(alvo) {
   const { fluxo: rascunho, etag } = await lerFluxo(id, { versao: 'draft' })
   const publicado = rascunho.publishedVersion === null || rascunho.publishedVersion === undefined ? null : (await lerFluxo(id, { versao: 'published', refs: false })).fluxo
   const copia = guardarCopia('fluxo', id, { nome: rascunho.name, status: rascunho.status, rascunho: corpoDoPut(rascunho), publicado: publicado ? corpoDoPut(publicado) : null, publishedVersion: rascunho.publishedVersion ?? null })
-  gravarJson(arquivoTrabalho(id), { id, etag, lidoEm: new Date().toISOString(), copia, rascunho, mudancas: null, novo: null })
+  // A cópia da última GRAVAÇÃO sobrevive a um `ler` novo (o Claude às vezes relê para conferir, e a
+  // cópia nova já tem a mudança): é dela que o `desfazer` volta.
+  const anterior = lerJson(arquivoTrabalho(id), null)
+  gravarJson(arquivoTrabalho(id), { id, etag, lidoEm: new Date().toISOString(), copia, copiaGravada: anterior?.copiaGravada ?? null, rascunho, mudancas: null, novo: null })
   const ctx = await contexto(rascunho.refs || [])
   console.log(roteiro(descrever(rascunho, ctx)))
   console.log('')
@@ -114,7 +118,7 @@ async function gravar(id) {
   try {
     const { corpo, etag } = await api('PUT', `/api/automations/${id}`, corpoDoPut(t.novo), { completo: true, cabecalhos: { 'If-Match': t.etag } })
     const gravado = desembrulhar(corpo)
-    gravarJson(arquivoTrabalho(id), { ...t, etag, rascunho: { ...gravado, refs: t.novo.refs }, gravadoEm: new Date().toISOString() })
+    gravarJson(arquivoTrabalho(id), { ...t, etag, rascunho: { ...gravado, refs: t.novo.refs }, gravadoEm: new Date().toISOString(), copiaGravada: t.copia })
     console.log(`Gravado no rascunho do fluxo #${id}. O que está no ar NÃO mudou: para isso, publique.`)
     for (const aviso of corpo?.warnings || []) console.log(`  aviso do Cubo: ${aviso.message}`)
     console.log(`Para voltar atrás: editar.mjs desfazer ${id}`)
@@ -168,7 +172,8 @@ async function mudarStatus(id, status) {
 }
 
 async function desfazer(id, opcoes) {
-  const { conteudo: copia, arquivo, quando } = pegarCopia('fluxo', id, opcoes.copia)
+  const trabalhoAtual = lerJson(arquivoTrabalho(id), null)
+  const { conteudo: copia, arquivo, quando } = pegarCopia('fluxo', id, opcoes.copia ?? (trabalhoAtual?.copiaGravada ? basename(trabalhoAtual.copiaGravada) : null))
   const { fluxo: atual, etag } = await lerFluxo(id, { versao: 'draft', refs: false })
   console.log(`Voltando o fluxo #${id} à cópia de ${quando.replace('T', ' ')} (${arquivo}).`)
   let marca = etag

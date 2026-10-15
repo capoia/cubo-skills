@@ -32,6 +32,7 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 5. **Pergunte antes de gravar, de publicar e de ligar** (clicável, cada um separado). Em publicar e
    ligar, a opção recomendada é **"Agora não"**. Repita o aviso de responsabilidade nessas perguntas.
 6. **Mude só o que foi pedido.**
+7. **Para conferir depois de gravar, use `node "<motor>/fluxo/explicar.mjs" preparar <id>`**, não o `ler`: o `ler` começa outra edição.
 
 ## Passos
 
