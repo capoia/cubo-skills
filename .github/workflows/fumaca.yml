@@ -24,3 +24,5 @@ jobs:
         run: node testes/fumaca.mjs
       - name: fumaça (migrar-conta)
         run: node testes/migrar-conta.mjs
+      - name: fumaça (fluxo e agente)
+        run: node testes/fluxo-agente.mjs

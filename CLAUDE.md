@@ -13,6 +13,8 @@ se chama `cubo-skills` e tem **um plugin só, o `cubo`**, em `plugins/cubo/`, co
 | --- | --- |
 | `/cubo:criar-landing-html` | criar, publicar e editar landing page em HTML no Cubo, pela API, com entrevista, SEO e PageSpeed |
 | `/cubo:migrar-conta` | copiar a configuração de uma conta do Cubo para outra, trocando os IDs pelos `refs` da API. **Leia `docs/migrar-conta/LEDGER.md` antes de mexer** |
+| `/cubo:explicar-fluxo` · `/cubo:explicar-agente` | explicar uma automação ou um agente de IA em linguagem simples, com página e lista de problemas para o suporte; não mudam nada |
+| `/cubo:criar-fluxo` · `/cubo:criar-agente` · `/cubo:editar-fluxo` · `/cubo:editar-agente` | criar e editar automações e agentes pela API, com prévia, cópia de segurança, desfazer e os itens que faltam criados pela API. Spec em `docs/superpowers/specs/2026-10-15-skills-fluxo-agente-design.md` |
 
 Quem instala roda:
 
@@ -47,16 +49,28 @@ plugins/cubo/
     scripts/*.mjs      Node: requisitos, cliente da API, raio-x da marca, anúncios, imagem, vídeo, ícone, teste final,
                        prévia, backup e medição (package.json com sharp, playwright e ffmpeg-static)
   skills/migrar-conta/            mesma forma; scripts sem dependência nenhuma
+  skills/{explicar,criar,editar}-{fluxo,agente}/   só SKILL.md e README.md: o trabalho é do motor
+  motor/               os scripts compartilhados pelas seis skills de fluxo e agente (só Node, sem dependência)
+  referencias/         as referências compartilhadas por elas (acesso, mudanças, itens, chips, simulação, escrita)
 docs/migrar-conta/               LEDGER do desenvolvimento e o briefing da API para o cubo-crm
 testes/fumaca.mjs    teste dos scripts da landing contra um Cubo de mentira
 testes/migrar-conta.mjs          o mesmo para a migração (Cubo de mentira com duas contas)
+testes/fluxo-agente.mjs          o mesmo para as skills de fluxo e agente (catálogos, If-Match/412, simulate)
 .github/workflows/   o CI que roda as duas fumaças em Windows, macOS e Linux
 ```
 
-**Cada skill é autocontida.** O Claude Code copia o plugin isolado para o cache, então nada de
-caminho que saia de `plugins/cubo/`. E cada skill fica dentro da própria pasta: se duas precisarem do
-mesmo cliente da API, cada uma tem a sua cópia (o `SKILL.md` só conhece o próprio
-`${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts`).
+**Nada de caminho que saia de `plugins/cubo/`.** O Claude Code copia o plugin isolado para o cache.
+
+**Landing e migração são autocontidas** (cada uma com os próprios scripts, mesmo que repitam o
+cliente da API). **As seis de fluxo e agente são finas e dividem um motor** (`plugins/cubo/motor/`)
+e as referências (`plugins/cubo/referencias/`): o `SKILL.md` delas aponta para
+`${CLAUDE_PLUGIN_ROOT}/motor` e `${CLAUDE_PLUGIN_ROOT}/referencias/…`. Decisão de 2026-10-15: são seis
+skills sobre o mesmo catálogo, a mesma leitura e a mesma gravação com trava; seis cópias divergiriam
+no primeiro conserto. Não junte landing e migração ao motor sem motivo: elas funcionam e têm teste.
+
+**Fluxos e agentes têm aviso de responsabilidade** (pedido do Wellington, 2026-10-15): o texto mora em
+`motor/aviso.mjs` e aparece no começo das quatro skills que escrevem, nas confirmações, nas páginas e
+nos READMEs. Não tire.
 
 A exceção é o **`plugins/cubo/cubo.json`**, a configuração que vale para todas as skills: hoje, o
 endereço do Cubo (`https://next.cubosuite.com.br`). A pessoa **não informa o endereço**: a chave de
@@ -156,6 +170,7 @@ prometer `status` e `css`, que a API recusa de propósito.
    ```bash
    node testes/fumaca.mjs
    node testes/migrar-conta.mjs
+   node testes/fluxo-agente.mjs
    ```
 
    O CI roda a mesma coisa em Windows, macOS e Linux, com Node 20 e 22, em todo PR. **É a única
