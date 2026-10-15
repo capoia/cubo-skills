@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs'
 import { abrirNoSistema, argumentos, falha, gravarJson, gravarTexto, lerJson, pasta } from '../lib.mjs'
 import { quemUsaAgente, varrer } from '../usos.mjs'
 import { contarProblemas, problemasEmTexto } from '../fluxo/comum.mjs'
+import { blocoDaResposta, contagem } from '../resposta.mjs'
 import { promptAnotado } from './chips.mjs'
 import { acharAgente, contextoAgente, descreverAgente, juntarProblemasAgente, lerAgente, modeloSemFerramentas, paginaDoAgente, roteiroAgente, validarAgente } from './comum.mjs'
 
@@ -55,11 +56,23 @@ function paginaCli(id) {
   const textoDoClaude = lerJson(arquivoTexto, {})
   if (!textoDoClaude.resumo) falha(`o texto não tem "resumo". Escreva o resumo em ${arquivoTexto} e rode de novo.`, 2)
   const exemplos = lerJson(pasta('explicacoes', `agente-${id}.exemplos.json`), { exemplos: [] }).exemplos
-  const html = paginaDoAgente({ dados, textoDoClaude, exemplos, titulo: `Agente: ${dados.descricao.nome}`, subtitulo: `Agente nº ${id} · modelo ${dados.descricao.modelo ?? '?'}` })
+  const { descricao } = dados
+  const html = paginaDoAgente({ dados, textoDoClaude, exemplos, titulo: descricao.nome, subtitulo: `Explicação do agente nº ${id}` })
   const arquivo = pasta('explicacoes', `agente-${id}.html`)
   gravarTexto(arquivo, html)
   abrirNoSistema(arquivo)
   console.log(`Página pronta: ${arquivo}`)
+  const usos = dados.usos === null || dados.usos === undefined ? 'não conferi' : dados.usos.length ? dados.usos.map((u) => u.nome).join(', ') : 'em lugar nenhum'
+  console.log('\n' + blocoDaResposta({
+    titulo: `🤖 ${descricao.nome} · agente nº ${id}`,
+    fatos: {
+      cabecalho: ['Modelo', 'Ferramentas', 'Lembretes', 'Onde é usado', 'Exemplos', 'Problemas'],
+      valores: [descricao.modelo ?? '?', descricao.chips.length || 'só conversa', descricao.followUp.ligado ? 'ligados' : 'desligados', usos, exemplos.length ? `${exemplos.length} conversa(s)` : 'não rodou', contagem(contarProblemas(dados.problemas))],
+    },
+    problemas: dados.problemas,
+    arquivo,
+    proximo: `⟨se houver o que corrigir: “Posso ajustar com /cubo:editar-agente ${id}: …”; senão, apague esta linha⟩`,
+  }))
 }
 
 const { opcoes, posicionais } = argumentos(process.argv.slice(2))

@@ -37,5 +37,6 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 4. **Escrever.** `cubo/explicacoes/agente-<id>.texto.json`, como em
    [escrever-explicacao.md](${CLAUDE_PLUGIN_ROOT}/referencias/escrever-explicacao.md).
 5. **Página.** `node "<motor>/agente/explicar.mjs" pagina <id>`.
-6. **Responder.** O resumo, como ele se saiu nos exemplos, onde é usado, quantos problemas e o
-   caminho da página. Ofereça `/cubo:editar-agente` se houver o que corrigir.
+6. **Responder.** Copie o bloco **RESPOSTA PARA A PESSOA** que o `pagina` imprime (tabelas, resumo,
+   pontos de atenção, caminho da página), completando o que está entre ⟨ ⟩ como em
+   [escrever-explicacao.md](${CLAUDE_PLUGIN_ROOT}/referencias/escrever-explicacao.md). Nada de parágrafo longo.

@@ -4,8 +4,9 @@ import { api, desembrulhar, ErroApi, todos } from '../api.mjs'
 import { catalogo, chipsPorNome } from '../catalogo.mjs'
 import { falha, normalizar } from '../lib.mjs'
 import { Nomes } from '../nomes.mjs'
-import { esc, listaDeProblemas, pagina, texto } from '../pagina.mjs'
-import { usosEmHtml } from '../fluxo/comum.mjs'
+import { icone } from '../icones.mjs'
+import { esc, etiqueta, listaDeProblemas, pagina, texto } from '../pagina.mjs'
+import { contarProblemas, usosEmHtml } from '../fluxo/comum.mjs'
 import { descreverChips, fraseDoChip, lerChips } from './chips.mjs'
 
 // Os campos que a API ainda aceita no corpo. `handoffTargets` é inerte, `enabledMcpConnections` e
@@ -135,17 +136,34 @@ export function roteiroAgente(descricao, { usos, prompt }) {
 
 export function conversaEmHtml(exemplo) {
   const falas = exemplo.turnos.map((t) => {
-    const ferramentas = (t.toolCalls || []).map((f) => `<div class="ferramenta">usou <code>${esc(f.name)}</code>${f.simulated ? ' (simulado: nada mudou na conta)' : ''}${f.error ? ` — erro: ${esc(f.error)}` : ''}</div>`).join('')
+    const ferramentas = (t.toolCalls || []).map((f) => `<div class="ferramenta">${icone(f.error ? 'circle-x' : 'wrench', { tamanho: 14 })}<span>usou <code>${esc(f.name)}</code>${f.simulated ? ' (simulado: nada mudou na conta)' : ''}${f.error ? ` — erro: ${esc(f.error)}` : ''}</span></div>`).join('')
     return `<div class="fala user">${esc(t.cliente)}</div>${t.erro ? `<div class="fala assistant">(erro: ${esc(t.erro)})</div>` : `<div class="fala assistant">${esc(t.resposta)}${ferramentas}</div>`}`
   })
   const custo = exemplo.turnos.reduce((s, t) => s + (t.custoCentavos || 0), 0)
   return `<div class="cartao"><strong>${esc(exemplo.titulo)}</strong>${exemplo.objetivo ? `<p class="sub">${esc(exemplo.objetivo)}</p>` : ''}<div class="conversa">${falas.join('')}</div><p class="custo">Custo: ${custo.toFixed(2).replace('.', ',')} centavos</p>${exemplo.comentario ? texto(exemplo.comentario) : ''}</div>`
 }
 
-export function paginaDoAgente({ dados, textoDoClaude = {}, exemplos = [], titulo, subtitulo, extra = [] }) {
+// As etiquetas do topo: modelo, ferramentas, lembretes e os problemas por gravidade.
+export function etiquetasDoAgente(descricao, problemas, extra = []) {
+  const conta = contarProblemas(problemas)
+  const n = descricao.chips.length
+  return [
+    ...extra,
+    descricao.modelo ? { texto: descricao.modelo, tom: 'neutro', icone: 'bot' } : null,
+    { texto: n ? `${n} ${n === 1 ? 'ferramenta' : 'ferramentas'}` : 'Só conversa', tom: 'marca', icone: 'wrench' },
+    descricao.followUp.ligado ? { texto: 'Lembretes ligados', tom: 'marca', icone: 'alarm-clock' } : { texto: 'Sem lembretes', tom: 'neutro', icone: 'alarm-clock' },
+    conta.erro ? { texto: `${conta.erro} ${conta.erro === 1 ? 'erro' : 'erros'}`, tom: 'erro', icone: 'circle-x' } : null,
+    conta.aviso ? { texto: `${conta.aviso} ${conta.aviso === 1 ? 'ponto' : 'pontos'} de atenção`, tom: 'aviso', icone: 'triangle-alert' } : null,
+    conta.nota ? { texto: `${conta.nota} ${conta.nota === 1 ? 'observação' : 'observações'}`, tom: 'nota', icone: 'info' } : null,
+    !conta.erro && !conta.aviso && !conta.nota ? { texto: 'Sem problemas', tom: 'ok', icone: 'circle-check' } : null,
+  ].filter(Boolean)
+}
+
+export function paginaDoAgente({ dados, textoDoClaude = {}, exemplos = [], titulo, subtitulo, etiquetas, extra = [] }) {
   const { descricao, problemas, usos, prompt } = dados
+  const situacao = (c) => (c.estado === 'ok' ? etiqueta({ texto: 'ok', tom: 'ok', icone: 'circle-check' }) : etiqueta({ texto: c.estado, tom: c.estado === 'desconhecido' ? 'erro' : 'aviso', icone: 'triangle-alert' }))
   const chips = descricao.chips.length
-    ? `<table><tr><th>Ferramenta</th><th>O que faz</th><th>Situação</th></tr>${descricao.chips.map((c) => `<tr><td>${esc(c.rotulo)}<br><code>${esc(c.token)}</code></td><td>${esc((textoDoClaude.chips || {})[c.token] ?? c.descricao ?? '')}${c.params.length ? `<br><span class="sub">${esc(c.params.map((p) => `${p.rotulo}: ${p.nome}`).join('; '))}</span>` : ''}</td><td>${esc(c.estado === 'ok' ? 'ok' : c.estado)}</td></tr>`).join('')}</table>`
+    ? `<div class="tabela"><table><tr><th>Ferramenta</th><th>O que faz</th><th>Situação</th></tr>${descricao.chips.map((c) => `<tr><td><strong>${esc(c.rotulo)}</strong><br><code>${esc(c.token)}</code></td><td>${esc((textoDoClaude.chips || {})[c.token] ?? c.descricao ?? '')}${c.params.length ? `<br><span class="sub">${esc(c.params.map((p) => `${p.rotulo}: ${p.nome}`).join('; '))}</span>` : ''}</td><td>${situacao(c)}</td></tr>`).join('')}</table></div>`
     : '<p>Nenhuma: este agente só conversa.</p>'
   const exemplosHtml = exemplos.length
     ? `<p class="sub">Conversas simuladas no Cubo com o agente como está gravado. Nos exemplos, escrever é de mentira (nada mudou na conta) e ler é de verdade. Ferramentas que dependem de uma conversa real (por exemplo, passar para humano) falham, e os lembretes não aparecem.</p>${exemplos.map(conversaEmHtml).join('')}`
@@ -153,15 +171,17 @@ export function paginaDoAgente({ dados, textoDoClaude = {}, exemplos = [], titul
   return pagina({
     titulo,
     subtitulo,
+    tipoDocumento: 'Agentes de IA',
+    etiquetas: etiquetas ?? etiquetasDoAgente(descricao, problemas),
     secoes: [
-      { id: 'resumo', titulo: 'Resumo', html: texto(textoDoClaude.resumo || '') },
-      textoDoClaude.explicacao ? { id: 'como', titulo: 'Como ele age', html: texto(textoDoClaude.explicacao) } : null,
+      { id: 'resumo', titulo: 'Resumo', html: `<div class="cartao">${texto(textoDoClaude.resumo || '')}</div>` },
+      textoDoClaude.explicacao ? { id: 'como', titulo: 'Como ele age', html: `<div class="cartao">${texto(textoDoClaude.explicacao)}</div>` } : null,
       ...extra,
       { id: 'ferramentas', titulo: 'O que ele pode fazer', html: chips },
-      { id: 'followup', titulo: 'Lembretes (follow-up)', html: `<p>${esc(descricao.followUp.texto)}</p>` },
+      { id: 'followup', titulo: 'Lembretes (follow-up)', html: `<div class="cartao"><p>${esc(descricao.followUp.texto)}</p></div>` },
       { id: 'exemplos', titulo: 'Conversas de exemplo', html: exemplosHtml },
       usos ? { id: 'usos', titulo: 'Onde é usado', html: usosEmHtml(usos, 'Em lugar nenhum: nenhum canal, automação ou agente usa este agente.') } : null,
-      { id: 'problemas', titulo: 'Problemas encontrados (para o suporte)', html: listaDeProblemas(problemas) },
+      { id: 'problemas', titulo: 'Problemas encontrados', html: `<p class="sub">Lista para o suporte, do mais grave para o mais leve.</p>${listaDeProblemas(problemas)}` },
       prompt !== undefined ? { id: 'prompt', titulo: 'Prompt completo', html: `<details><summary>Mostrar o prompt (${String(prompt).length} caracteres)</summary><pre>${esc(prompt)}</pre></details>` } : null,
     ],
   })

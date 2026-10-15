@@ -5,7 +5,9 @@ import { catalogo, gatilhosPorTipo, nosPorTipo } from '../catalogo.mjs'
 import { desenho } from '../desenho.mjs'
 import { falha, normalizar } from '../lib.mjs'
 import { Nomes } from '../nomes.mjs'
-import { esc, listaDeProblemas, pagina, texto } from '../pagina.mjs'
+import { icone } from '../icones.mjs'
+import { esc, etiqueta, irPara, listaDeProblemas, pagina, texto } from '../pagina.mjs'
+import { corDoTipo, iconeDoGatilho, iconeDoTipo } from '../tipos.mjs'
 import { armadilhas } from './armadilhas.mjs'
 import { caminhoEmTexto } from './caminhos.mjs'
 import { nosDoFluxo } from './modelo.mjs'
@@ -90,28 +92,47 @@ export function problemasEmTexto(problemas) {
 }
 
 const ROTULO_ONDE = { canal: 'Canal', 'automação': 'Automação', agente: 'Agente' }
+const ICONE_ONDE = { canal: 'message-circle', 'automação': 'workflow', agente: 'bot' }
 
 export function usosEmHtml(usos, vazio) {
   if (!usos.length) return `<p>${esc(vazio)}</p>`
-  return `<table><tr><th>Onde</th><th>Nome</th><th>Como</th></tr>${usos.map((u) => `<tr><td>${esc(ROTULO_ONDE[u.onde] ?? u.onde)}</td><td>${esc(u.nome)} <span class="sub">#${esc(u.id)}</span></td><td>${esc(u.detalhe)}</td></tr>`).join('')}</table>`
+  return `<div class="tabela"><table><tr><th>Onde</th><th>Nome</th><th>Como</th></tr>${usos.map((u) => `<tr><td>${etiqueta({ texto: ROTULO_ONDE[u.onde] ?? u.onde, tom: 'marca', icone: ICONE_ONDE[u.onde] })}</td><td><strong>${esc(u.nome)}</strong> <span class="sub">#${esc(u.id)}</span></td><td>${esc(u.detalhe)}</td></tr>`).join('')}</table></div>`
 }
+
+// As etiquetas do topo: ligado ou não, quantos passos, e os problemas por gravidade.
+export function etiquetasDoFluxo(descricao, problemas, extra = []) {
+  const conta = contarProblemas(problemas)
+  const passos = descricao.passos.filter((p) => p.tipo !== 'start').length
+  return [
+    descricao.ligado ? { texto: 'Ligado', tom: 'ok', icone: 'circle-check' } : { texto: 'Desligado', tom: 'neutro', icone: 'circle-pause' },
+    ...extra,
+    { texto: `${passos} ${passos === 1 ? 'passo' : 'passos'}`, tom: 'marca', icone: 'workflow' },
+    conta.erro ? { texto: `${conta.erro} ${conta.erro === 1 ? 'erro' : 'erros'}`, tom: 'erro', icone: 'circle-x' } : null,
+    conta.aviso ? { texto: `${conta.aviso} ${conta.aviso === 1 ? 'ponto' : 'pontos'} de atenção`, tom: 'aviso', icone: 'triangle-alert' } : null,
+    conta.nota ? { texto: `${conta.nota} ${conta.nota === 1 ? 'observação' : 'observações'}`, tom: 'nota', icone: 'info' } : null,
+    !conta.erro && !conta.aviso && !conta.nota ? { texto: 'Sem problemas', tom: 'ok', icone: 'circle-check' } : null,
+  ].filter(Boolean)
+}
+
+const caixaDoIcone = (tipo, simbolo = iconeDoTipo(tipo)) => `<span class="ic-caixa" style="background:${corDoTipo(tipo)}">${icone(simbolo, { tamanho: 18 })}</span>`
 
 // A página do fluxo, para explicar ou para mostrar a prévia antes de gravar.
 // textoDoClaude: { resumo, passos: { "<n>": "frase" }, caminhos: [{ titulo, historia }] }
-export function paginaDoFluxo({ dados, textoDoClaude = {}, titulo, subtitulo, extra = [] }) {
-  const { descricao, problemas, caminhos = [], usos = [], diferencas = null, nosOriginais = [] } = dados
+export function paginaDoFluxo({ dados, textoDoClaude = {}, titulo, subtitulo, etiquetas, extra = [] }) {
+  const { descricao, problemas, caminhos = [], usos = [], diferencas = null } = dados
   const comProblema = new Set(problemas.filter((p) => p.gravidade !== 'nota' && p.noId).map((p) => p.noId))
   const frases = textoDoClaude.passos || {}
   const passosHtml = descricao.passos
     .filter((p) => p.tipo !== 'start')
     .map((p) => {
-      const saidas = p.saidas.filter((s) => s.destinos.length || !s.motor).map((s) => `<li>${esc(s.rotulo)} → ${s.destinos.length ? s.destinos.map((d) => `<a href="#passo-${esc(d)}">passo ${esc(d)}</a>`).join(', ') : 'fim'}</li>`)
-      if (p.irPara) saidas.push(`<li>vai para o <a href="#passo-${esc(p.irPara)}">passo ${esc(p.irPara)}</a></li>`)
+      const saidas = p.saidas.filter((s) => s.destinos.length || !s.motor).map((s) => `<li>${esc(s.rotulo)} ${icone('arrow-right', { tamanho: 14 })} ${s.destinos.length ? s.destinos.map((d) => irPara(d)).join(' ') : '<span class="fim">fim</span>'}</li>`)
+      if (p.irPara) saidas.push(`<li>vai para ${irPara(p.irPara)}</li>`)
       const frase = frases[p.n] ?? frases[String(p.n)] ?? p.descricaoTipo ?? ''
-      return `<div class="passo" id="passo-${p.n}"><h3>${p.n}. ${esc(p.titulo || p.rotuloTipo)} <span class="tipo">· ${esc(p.rotuloTipo)}${p.orfao ? ' · solto (nada chega aqui)' : ''}</span></h3>${texto(frase)}${saidas.length ? `<ul class="saidas">${saidas.join('')}</ul>` : ''}</div>`
+      const marcas = [comProblema.has(p.id) ? etiqueta({ texto: 'tem problema', tom: 'erro', icone: 'triangle-alert' }) : '', p.orfao ? etiqueta({ texto: 'solto: nada chega aqui', tom: 'aviso' }) : ''].join('')
+      return `<div class="passo" id="passo-${p.n}">${caixaDoIcone(p.tipo)}<h3><span class="n">${p.n}.</span> ${esc(p.titulo || p.rotuloTipo)} <span class="tipo">${esc(p.rotuloTipo)}</span>${marcas}</h3>${texto(frase)}${saidas.length ? `<ul class="saidas">${saidas.join('')}</ul>` : ''}</div>`
     })
     .join('')
-  const gatilhos = descricao.gatilhos.length ? `<ul>${descricao.gatilhos.map((g) => `<li><strong>${esc(g.rotulo)}</strong></li>`).join('')}</ul>` : '<p>Nenhum gatilho: este fluxo não começa sozinho.</p>'
+  const gatilhos = descricao.gatilhos.length ? `<ul class="gatilhos">${descricao.gatilhos.map((g) => `<li>${caixaDoIcone('trigger', iconeDoGatilho(g.tipo))}${esc(g.rotulo)}</li>`).join('')}</ul>` : '<p>Nenhum gatilho: este fluxo não começa sozinho.</p>'
   const historias = textoDoClaude.caminhos?.length
     ? textoDoClaude.caminhos.map((c) => `<div class="cartao"><strong>${esc(c.titulo)}</strong>${texto(c.historia)}</div>`).join('')
     : caminhos.map((c) => `<div class="cartao">${esc(caminhoEmTexto(c))}</div>`).join('')
@@ -121,15 +142,17 @@ export function paginaDoFluxo({ dados, textoDoClaude = {}, titulo, subtitulo, ex
   return pagina({
     titulo,
     subtitulo,
+    tipoDocumento: 'Automações',
+    etiquetas: etiquetas ?? etiquetasDoFluxo(descricao, problemas),
     secoes: [
-      { id: 'resumo', titulo: 'Resumo', html: `${texto(textoDoClaude.resumo || '')}${dif}` },
+      { id: 'resumo', titulo: 'Resumo', html: `<div class="cartao">${texto(textoDoClaude.resumo || '')}</div>${dif}` },
       ...extra,
       { id: 'gatilhos', titulo: 'O que faz o fluxo começar', html: gatilhos },
-      { id: 'desenho', titulo: 'Desenho', html: `<div class="rolagem">${desenho(descricao, nosOriginais, comProblema)}</div>` },
-      { id: 'passos', titulo: 'Passo a passo', html: passosHtml || '<p>Nenhum passo.</p>' },
+      { id: 'desenho', titulo: 'Desenho', html: `<div class="rolagem" id="caixa-desenho">${desenho(descricao, comProblema)}</div><button class="alterna" type="button" data-alvo="caixa-desenho">Ver em tamanho real</button>` },
+      { id: 'passos', titulo: 'Passo a passo', html: passosHtml ? `<div class="passos">${passosHtml}</div>` : '<p>Nenhum passo.</p>' },
       { id: 'caminhos', titulo: 'Caminhos de exemplo', html: `<p class="sub">Caminhos lidos do desenho, não execuções reais: o Cubo não tem simulação de automação.</p>${historias || '<p>Sem caminhos para mostrar.</p>'}` },
       usos ? { id: 'usos', titulo: 'Quem chama este fluxo', html: usosEmHtml(usos, 'Nenhum outro fluxo, agente ou canal chama este fluxo: ele só começa pelos gatilhos.') } : null,
-      { id: 'problemas', titulo: 'Problemas encontrados (para o suporte)', html: listaDeProblemas(problemas) },
+      { id: 'problemas', titulo: 'Problemas encontrados', html: `<p class="sub">Lista para o suporte, do mais grave para o mais leve.</p>${listaDeProblemas(problemas)}` },
     ],
   })
 }

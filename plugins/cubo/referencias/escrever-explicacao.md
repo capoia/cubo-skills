@@ -50,5 +50,14 @@ em linguagem simples num JSON, e o `pagina` monta a página.
 
 ## Na conversa
 
-Feche com o resumo (as mesmas 2 a 4 frases), o número de problemas e o caminho da página. Não cole
-a lista técnica inteira na conversa: ela está na página.
+O `pagina` imprime, depois de gerar a página, um bloco **RESPOSTA PARA A PESSOA**: título, uma
+tabela com os fatos (situação, gatilho, passos, problemas), a tabela de pontos de atenção e o caminho
+da página. **A sua resposta é esse bloco**, copiado como está, sem as linhas ──── e sem as instruções:
+
+- troque cada ⟨ ⟩ pelo texto: o resumo (2 ou 3 frases curtas, sem número de nó), uma linha
+  `🔎 Leitura` na tabela para cada ponto que você achou lendo o desenho e que o motor não marcou
+  (ou apague a linha), e a oferta do fim (ou apague);
+- não troque os fatos da tabela nem a ordem: eles vêm do motor;
+- nada de parágrafo longo, nem a lista técnica inteira: ela está na página.
+
+Ficou sem nenhuma linha em **Pontos de atenção**: troque a tabela por "🟢 Nenhum ponto de atenção."
