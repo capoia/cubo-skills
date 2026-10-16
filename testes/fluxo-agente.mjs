@@ -576,6 +576,32 @@ await caso('desenho: de cima para baixo, volta pela faixa, passo solto embaixo, 
   confere(largura < 400, `uma coluna só, e não ${largura}px`)
 })
 
+await caso('null e arquivo: null em campo de texto é erro; passo novo sem o "" padrão; link de arquivo não é ref quebrada', async () => {
+  const motor = (arquivo) => import(pathToFileURL(join(MOTOR, arquivo)).href)
+  const { armadilhas } = await motor('fluxo/armadilhas.mjs')
+  const { aplicarMudancas } = await motor('fluxo/mudancas.mjs')
+  const { comNomes } = await motor('fluxo/descrever.mjs')
+  const { Nomes } = await motor('nomes.mjs')
+  const defs = {
+    start: { type: 'start', defaults: {}, outputs: [{ handle: null, label: 'Seguir' }] },
+    agent_call: { type: 'agent_call', label: 'Chamar agente', defaults: { responseMode: 'direct', variableName: '', callerInstruction: '', overrides: {} }, outputs: [{ handle: null, label: 'Seguir' }], configSchema: { properties: { variableName: { type: 'string' }, callerInstruction: { type: 'string' }, mensagem: { type: ['string', 'null'] }, label: {} } } },
+  }
+  // O editor do Cubo salva o texto apagado como null, e o motor de automações recusa: o passo para.
+  const salvoPeloEditor = { flowData: { nodes: [{ id: 'start', type: 'start', data: {} }, { id: 'ag', type: 'agent_call', data: { label: 'Agente', agentId: 1, variableName: null, mensagem: null, label2: null } }], edges: [] } }
+  const achados = armadilhas(salvoPeloEditor, defs).filter((a) => a.codigo === 'campo_null')
+  confere(achados.length === 1 && achados[0].gravidade === 'erro' && /variableName/.test(achados[0].mensagem), `só o campo de texto que não aceita null: ${JSON.stringify(achados)}`)
+  // Passo criado pela skill: sem o "" do padrão, que viraria null num salvamento pela tela.
+  const novo = aplicarMudancas({ flowData: { nodes: [{ id: 'start', type: 'start', data: {} }], edges: [] } }, [{ op: 'por', id: 'ag', tipo: 'agent_call', dados: { agentId: 1 } }], { defs, gatilhos: {} })
+  const data = novo.fluxo.flowData.nodes.find((n) => n.id === 'ag').data
+  confere(!('variableName' in data) && !('callerInstruction' in data) && data.responseMode === 'direct' && data.agentId === 1, JSON.stringify(data))
+  // O arquivo do "Enviar arquivo" vem nos refs com o link no lugar do número: não dá para conferir, não é erro.
+  const nomes = new Nomes()
+  const link = 'https://cdn.exemplo.com/proposta.pdf'
+  confere(nomes.existe('file', link) === null, 'tipo sem lista: não se sabe')
+  const { copia, quebrados } = comNomes({ flowData: { nodes: [{ id: 'm', type: 'send_media', data: { mediaUrl: link } }] }, refs: [{ path: 'flowData.nodes[0].data.mediaUrl', kind: 'file', id: link }] }, nomes)
+  confere(!quebrados.length && copia.flowData.nodes[0].data.mediaUrl === link, 'o link fica como está e não acusa nada')
+})
+
 await caso('explicar-fluxo: nunca publicado explica o rascunho e avisa', async () => {
   const r = await roda('fluxo/explicar.mjs', ['preparar', '702', '--sem-usos'])
   confere(r.codigo === 0 && /NUNCA FOI PUBLICADO/.test(r.saida) && /no_trigger_or_action/.test(r.saida), r.saida)

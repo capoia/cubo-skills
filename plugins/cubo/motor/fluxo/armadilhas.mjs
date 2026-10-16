@@ -4,6 +4,14 @@
 // delas, ela sai daqui.
 import { TERMINAIS, arestasQueSaem, handleDaAresta, ligacoes, nosDoFluxo } from './modelo.mjs'
 
+// O campo aceita null? Só diz que não quando o catálogo garante (tipo sem "null"); sem tipo, não se sabe.
+function aceitaNull(prop) {
+  if (!prop || typeof prop !== 'object') return true
+  if (prop.anyOf || prop.oneOf) return (prop.anyOf || prop.oneOf).some(aceitaNull)
+  if (prop.type === undefined) return true
+  return [].concat(prop.type).includes('null')
+}
+
 const CAMPOS_QUE_O_UPDATE_DEAL_GRAVA = new Set(['title', 'price', 'customfield', 'tags', 'status'])
 
 export function armadilhas(fluxo, defs) {
@@ -13,6 +21,14 @@ export function armadilhas(fluxo, defs) {
   for (const no of nosDoFluxo(fluxo)) {
     const data = no.data || {}
     const saem = arestasQueSaem(fluxo, no.id)
+
+    // O editor do Cubo grava null quando alguém apaga um texto opcional, e o motor de automações recusa
+    // null em campo de texto: o passo para com erro quando o fluxo chega nele. A validação da API não pega.
+    const propriedades = defs[no.type]?.configSchema?.properties || {}
+    for (const [campo, valor] of Object.entries(data)) {
+      if (valor !== null || aceitaNull(propriedades[campo])) continue
+      acha(no, 'campo_null', `O campo “${campo}” está vazio de um jeito que o Cubo não aceita (null): quando o fluxo chegar neste passo, ele para com erro.`, `Tire o campo com /cubo:editar-fluxo (configurar “${campo}” com null tira o campo), ou escreva algo nele no editor. Acontece quando um texto opcional é apagado no editor do Cubo.`, 'erro')
+    }
 
     if (no.type === 'end_flow' && saem.length) {
       acha(no, 'end_flow_segue', 'O passo “Encerrar conversa” não para o fluxo: o Cubo segue pela ligação que sai dele, e os passos seguintes rodam.', 'Se a ideia é parar aqui, tire a ligação que sai deste passo.')

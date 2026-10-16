@@ -81,7 +81,9 @@ export class Nomes {
   }
 
   existe(kind, id) {
-    if (this.semPermissao.has(kind)) return null // não dá para saber
+    // Sem lista para ler (o arquivo do passo "Enviar arquivo" vem com o link no lugar do número) ou sem
+    // permissão: não dá para saber.
+    if (!TIPOS[kind] || this.semPermissao.has(kind)) return null
     return Boolean(this.item(kind, id))
   }
 

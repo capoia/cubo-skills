@@ -1,7 +1,6 @@
 ---
 name: editar-fluxo
-description: Muda uma automação (fluxo) do Cubo pela conversa — pôr, tirar, ligar e configurar passos e gatilhos — com cópia de segurança, prévia antes de gravar, publicar e ligar separados, e desfazer. Cria pela API as tags, etapas e campos que faltarem.
-disable-model-invocation: true
+description: Muda uma automação (fluxo) do Cubo pela conversa — pôr, tirar, ligar e configurar passos e gatilhos — com cópia de segurança, prévia antes de gravar, publicar e ligar separados, e desfazer. Cria pela API as tags, etapas e campos que faltarem. Use quando pedirem para mudar, corrigir, publicar ou ligar uma automação do Cubo. Pergunta antes de gravar.
 ---
 
 # Editar fluxo do Cubo

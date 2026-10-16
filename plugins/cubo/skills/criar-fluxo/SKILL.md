@@ -1,7 +1,6 @@
 ---
 name: criar-fluxo
-description: Cria uma automação (fluxo) nova no Cubo a partir de uma entrevista — gatilho, passos, mensagens, condições — com prévia antes de criar. Nasce rascunho e desligada; publicar e ligar são perguntas à parte. Cria pela API as tags, etapas e campos que faltarem.
-disable-model-invocation: true
+description: Cria uma automação (fluxo) nova no Cubo a partir de uma entrevista — gatilho, passos, mensagens, condições — com prévia antes de criar. Nasce rascunho e desligada; publicar e ligar são perguntas à parte. Cria pela API as tags, etapas e campos que faltarem. Use quando pedirem para criar ou montar uma automação ou fluxo no Cubo. Pergunta antes de criar.
 ---
 
 # Criar fluxo no Cubo

@@ -122,7 +122,10 @@ export function aplicarMudancas(original, mudancas, { defs, gatilhos }) {
     const id = m.id ? String(m.id) : novoId(fluxo, m.tipo)
     if (id.length > 50) throw new ErroMudanca(`o id “${id}” passa de 50 caracteres.`)
     if (nos().some((n) => n.id === id)) throw new ErroMudanca(`já existe um nó com o id “${id}”.`)
-    const data = juntar(structuredClone(def.defaults || {}), m.dados)
+    // Os padrões do catálogo, menos o texto vazio: o Cubo já usa "" quando o campo falta, e um "" gravado
+    // vira null se alguém salvar pelo editor, o que faz o passo parar.
+    const padroes = Object.fromEntries(Object.entries(def.defaults || {}).filter(([, valor]) => valor !== ''))
+    const data = juntar(structuredClone(padroes), m.dados)
     if (m.titulo) data.label = m.titulo
     const no = { id, type: m.tipo, data }
     if (perto) no.position = posicaoPerto(fluxo, perto)

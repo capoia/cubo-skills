@@ -91,8 +91,11 @@ acesso continua aceito, só para teste (um slot local) e para o SDK de conta de 
 
 Skill nova: `plugins/cubo/skills/<nome>/` com `SKILL.md`, `README.md`, referências e scripts; linha
 nas tabelas daqui e do `README.md` da raiz; versão do plugin `cubo` subida; e `caso` na fumaça. Skill que
-**escreve** na conta do cliente leva `disable-model-invocation: true` no frontmatter: só roda
-quando a pessoa chama pelo `/comando`.
+**escreve** na conta do cliente pergunta antes de gravar, dentro da própria skill. As de fluxo e agente
+podem disparar sozinhas desde a 4.4.0 (pedido do Wellington, 2026-10-16: com o bloqueio, o Claude não
+conseguia encadear criar o agente e depois o fluxo que chama ele); a proteção é a prévia e o "Posso
+criar?". O `/cubo:migrar-conta`, que mexe na conta inteira, continua com
+`disable-model-invocation: true`: só roda pelo `/comando`.
 
 ## Quem usa a skill, e o que isso exige
 

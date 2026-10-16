@@ -38,7 +38,7 @@ Abra o Claude Code numa pasta (é onde a skill guarda a chave, as cópias e as p
 /cubo:editar-agente SDR
 ```
 
-Só roda quando você chama pelo comando.
+Também dispara sozinha quando você pede ("muda o prompt do agente SDR…"), e nada é gravado sem a sua confirmação.
 
 As outras skills de fluxo e agente: `/cubo:explicar-fluxo`, `/cubo:explicar-agente`,
 `/cubo:criar-fluxo`, `/cubo:criar-agente`, `/cubo:editar-fluxo`, `/cubo:editar-agente`.

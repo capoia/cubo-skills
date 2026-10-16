@@ -1,7 +1,6 @@
 ---
 name: editar-agente
-description: Muda um agente de IA do Cubo pela conversa — prompt, ferramentas (chips), modelo, lembretes — com cópia de segurança, antes → depois, onde é usado, conversas de teste (simulação) e desfazer. Agente não tem rascunho: grava na hora.
-disable-model-invocation: true
+description: Muda um agente de IA do Cubo pela conversa — prompt, ferramentas (chips), modelo, lembretes — com cópia de segurança, antes → depois, onde é usado, conversas de teste (simulação) e desfazer. Agente não tem rascunho: grava na hora. Use quando pedirem para mudar ou corrigir um agente de IA do Cubo. Pergunta antes de gravar.
 ---
 
 # Editar agente do Cubo
