@@ -1,7 +1,6 @@
 ---
 name: criar-agente
-description: Cria um agente de IA novo no Cubo a partir de uma entrevista — para que serve, tom, ferramentas (chips), lembretes, modelo — com prévia antes de criar e conversas de teste (simulação). Nasce sem ninguém usando. Cria pela API as tags, etapas e intents que faltarem.
-disable-model-invocation: true
+description: Cria um agente de IA novo no Cubo a partir de uma entrevista — para que serve, tom, ferramentas (chips), lembretes, modelo — com prévia antes de criar e conversas de teste (simulação). Nasce sem ninguém usando. Cria pela API as tags, etapas e intents que faltarem. Use quando pedirem para criar um agente de IA no Cubo. Pergunta antes de criar.
 ---
 
 # Criar agente no Cubo

@@ -1,6 +1,7 @@
 // O fluxo em forma de leitura: gatilhos, passos em ordem, cada saída com o destino, e os IDs já
 // trocados pelos nomes da conta. É esse texto pronto (o "roteiro") que o Claude explica, com menos
 // chance de errar do que lendo o JSON cru.
+import { TIPOS } from '../nomes.mjs'
 import { TERMINAIS, ligacoes, nosDoFluxo, ordemDosNos } from './modelo.mjs'
 
 // `flowData.nodes[3].data["x y"][0]` → ['flowData', 'nodes', 3, 'data', 'x y', 0]
@@ -30,6 +31,7 @@ export function comNomes(fluxo, nomes) {
   const copia = structuredClone(fluxo)
   const quebrados = []
   for (const ref of fluxo.refs || []) {
+    if (!TIPOS[ref.kind]) continue // sem nome para dar (ex.: arquivo, que é um link): fica como está
     const partes = partesDoCaminho(ref.path)
     const atual = pegar(copia, partes)
     const nome = nomes.nome(ref.kind, ref.id)
