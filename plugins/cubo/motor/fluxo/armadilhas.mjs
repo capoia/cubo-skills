@@ -14,8 +14,12 @@ function aceitaNull(prop) {
 
 const CAMPOS_QUE_O_UPDATE_DEAL_GRAVA = new Set(['title', 'price', 'customfield', 'tags', 'status'])
 
+// Passos que só mandam algo e seguem, sem esperar resposta.
+const SO_FALAM = new Set(['send_message', 'send_media', 'send_whatsapp_template'])
+
 export function armadilhas(fluxo, defs) {
   const achados = []
+  const porId = new Map(nosDoFluxo(fluxo).map((no) => [no.id, no]))
   const acha = (no, codigo, mensagem, oQueFazer, gravidade = 'aviso') => achados.push({ noId: no.id, tipo: no.type, titulo: no.data?.label ?? null, codigo, gravidade, mensagem, oQueFazer })
 
   for (const no of nosDoFluxo(fluxo)) {
@@ -30,6 +34,11 @@ export function armadilhas(fluxo, defs) {
       acha(no, 'campo_null', `O campo “${campo}” está vazio de um jeito que o Cubo não aceita (null): quando o fluxo chegar neste passo, ele para com erro.`, `Tire o campo com /cubo:editar-fluxo (configurar “${campo}” com null tira o campo), ou escreva algo nele no editor. Acontece quando um texto opcional é apagado no editor do Cubo.`, 'erro')
     }
 
+    // Agente logo depois de uma mensagem do próprio fluxo: entra sem o contato ter dito nada e responde ao
+    // histórico, cuja última fala costuma ser um pedido que o fluxo já atendeu (o PDF do fluxo 1147).
+    if (no.type === 'agent_call' && (fluxo.flowData?.edges || []).some((aresta) => aresta.target === no.id && SO_FALAM.has(porId.get(aresta.source)?.type))) {
+      acha(no, 'agente_sem_pergunta', 'O agente entra logo depois de uma mensagem do próprio fluxo, sem o contato ter dito nada: ele responde ao histórico (a última coisa que o contato pediu) e pode repetir o pedido, prometer o que o fluxo já fez ou passar para uma pessoa.', 'Troque a mensagem de antes por “Fazer pergunta” (ela espera a resposta), para o agente entrar com a pergunta do contato. E diga no prompt do agente o que o fluxo já mandou (ex.: “o PDF já foi enviado nesta conversa; nunca diga que vai enviar”).')
+    }
     if (no.type === 'end_flow' && saem.length) {
       acha(no, 'end_flow_segue', 'O passo “Encerrar conversa” não para o fluxo: o Cubo segue pela ligação que sai dele, e os passos seguintes rodam.', 'Se a ideia é parar aqui, tire a ligação que sai deste passo.')
     }

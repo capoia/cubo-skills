@@ -9,7 +9,7 @@ import { abrirNoSistema, argumentos, falha, gravarJson, pasta } from './lib.mjs'
 const USO = `uso:
   acesso.mjs abrir                                 cria o arquivo de acesso (se faltar) e abre no editor
   acesso.mjs conferir --para=<skill> [--simular]   testa a chave; sai com erro se faltar algo
-     <skill>: explicar-fluxo · explicar-agente · editar-fluxo · criar-fluxo · editar-agente · criar-agente`
+     <skill>: explicar-fluxo · explicar-agente · investigar-teste · editar-fluxo · criar-fluxo · editar-agente · criar-agente`
 
 const MODELO = `# Acesso ao Cubo, para as skills de fluxo e agente.
 # Cole a chave de API na linha de baixo, salve o arquivo (Ctrl+S) e feche.
@@ -27,6 +27,7 @@ CUBO_API_KEY=
 const PEDIDOS = {
   'explicar-fluxo': { escopos: { automations: ['read'], agents: ['read'], channels: ['read'] }, leituraGeral: true },
   'explicar-agente': { escopos: { agents: ['read'], automations: ['read'], channels: ['read'] }, leituraGeral: true, simular: true },
+  'investigar-teste': { escopos: { conversations: ['read'], automations: ['read'], agents: ['read'], channels: ['read'] }, leituraGeral: true },
   'editar-fluxo': { escopos: { automations: ['read', 'create', 'update'] }, leituraGeral: true },
   'criar-fluxo': { escopos: { automations: ['read', 'create', 'update'] }, leituraGeral: true },
   'editar-agente': { escopos: { agents: ['read', 'update'], automations: ['read'], channels: ['read'] }, admin: true, modulo: 'ai-agents', leituraGeral: true, simular: true },
@@ -46,7 +47,7 @@ export function temEscopo(chave, recurso, acao) {
 }
 
 const ROTULO_ACAO = { read: 'leitura', create: 'criação', update: 'edição', simulate: 'simular' }
-const ROTULO_AREA = { automations: 'Automações', agents: 'Agentes de IA', channels: 'Canais', integrations: 'Integrações', pipes: 'Funis', stages: 'Etapas', customfields: 'Campos personalizados', tags: 'Tags', users: 'Usuários', templates: 'Templates', departments: 'Departamentos', products: 'Produtos', knowledgeBases: 'Base de conhecimento', intents: 'Intents' }
+const ROTULO_AREA = { conversations: 'Conversas', automations: 'Automações', agents: 'Agentes de IA', channels: 'Canais', integrations: 'Integrações', pipes: 'Funis', stages: 'Etapas', customfields: 'Campos personalizados', tags: 'Tags', users: 'Usuários', templates: 'Templates', departments: 'Departamentos', products: 'Produtos', knowledgeBases: 'Base de conhecimento', intents: 'Intents' }
 
 function abrir() {
   const arquivo = arquivoDeAcesso()

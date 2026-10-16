@@ -14,6 +14,7 @@ se chama `cubo-skills` e tem **um plugin só, o `cubo`**, em `plugins/cubo/`, co
 | `/cubo:criar-landing-html` | criar, publicar e editar landing page em HTML no Cubo, pela API, com entrevista, SEO e PageSpeed |
 | `/cubo:migrar-conta` | copiar a configuração de uma conta do Cubo para outra, trocando os IDs pelos `refs` da API. **Leia `docs/migrar-conta/LEDGER.md` antes de mexer** |
 | `/cubo:explicar-fluxo` · `/cubo:explicar-agente` | explicar uma automação ou um agente de IA em linguagem simples, com página e lista de problemas para o suporte; não mudam nada |
+| `/cubo:investigar-teste` | descobrir por que um teste deu errado: lê a conversa pela API (`motor/conversa.mjs`), cruza com o fluxo e o prompt e propõe a correção; não muda nada. Os sintomas e as causas conhecidas estão em `referencias/investigar.md` |
 | `/cubo:criar-fluxo` · `/cubo:criar-agente` · `/cubo:editar-fluxo` · `/cubo:editar-agente` | criar e editar automações e agentes pela API, com prévia, cópia de segurança, desfazer e os itens que faltam criados pela API. Spec em `docs/superpowers/specs/2026-10-15-skills-fluxo-agente-design.md` |
 
 Quem instala roda:
@@ -50,6 +51,7 @@ plugins/cubo/
                        prévia, backup e medição (package.json com sharp, playwright e ffmpeg-static)
   skills/migrar-conta/            mesma forma; scripts sem dependência nenhuma
   skills/{explicar,criar,editar}-{fluxo,agente}/   só SKILL.md e README.md: o trabalho é do motor
+  skills/investigar-teste/        idem: lê a conversa do teste (motor/conversa.mjs) e cruza com fluxo e agente
   motor/               os scripts compartilhados pelas seis skills de fluxo e agente (só Node, sem dependência)
     marca/             o logo do Cubo e a fonte Barlow (OFL), embutidos nas páginas
   referencias/         as referências compartilhadas por elas (acesso, mudanças, itens, chips, simulação, escrita)
@@ -63,7 +65,7 @@ testes/fluxo-agente.mjs          o mesmo para as skills de fluxo e agente (catá
 **Nada de caminho que saia de `plugins/cubo/`.** O Claude Code copia o plugin isolado para o cache.
 
 **Landing e migração são autocontidas** (cada uma com os próprios scripts, mesmo que repitam o
-cliente da API). **As seis de fluxo e agente são finas e dividem um motor** (`plugins/cubo/motor/`)
+cliente da API). **As de fluxo e agente (seis, mais a investigar-teste) são finas e dividem um motor** (`plugins/cubo/motor/`)
 e as referências (`plugins/cubo/referencias/`): o `SKILL.md` delas aponta para
 `${CLAUDE_PLUGIN_ROOT}/motor` e `${CLAUDE_PLUGIN_ROOT}/referencias/…`. Decisão de 2026-10-15: são seis
 skills sobre o mesmo catálogo, a mesma leitura e a mesma gravação com trava; seis cópias divergiriam
