@@ -110,6 +110,10 @@ Claude Code, **sem nenhum MCP**. Decisão de 2026-09-23. Daí as regras dos scri
 - **todo requisito novo aparece no `requisitos.mjs` e no `references/requisitos.md`** — descobrir no
   meio da entrega que falta algo é o que mais frustra quem usa;
 - a skill "olha" as páginas por **captura** (Playwright): é o único olho que existe sem MCP.
+- **a skill faz o necessário para funcionar e ajuda a pessoa no resto** (Wellington, 2026-10-16): as
+  de fluxo e agente conferem o Node no passo 1 e, sem ele, oferecem instalar (`winget` no Windows,
+  `brew` no macOS), como em `referencias/acesso.md`, "O Node". O `acesso.mjs` recusa Node abaixo do
+  20.9 (`nodeAntigo` no `lib.mjs`).
 
 **O `SKILL.md` fica curto e os `references/` carregam sob demanda.** Não é preferência de estilo: o
 `SKILL.md` (a descrição de cada skill) entra em **toda** sessão de quem tem o plugin instalado, enquanto os

@@ -511,6 +511,16 @@ await caso('acesso: sem arquivo, não deixa seguir e ensina a abrir; abrir cria 
   confere(a.codigo === 0 && /CUBO_API_KEY=/.test(le('.cubo.env')), a.saida)
 })
 
+await caso('acesso: Node mais velho que o 20.9 é recusado; as sete skills conferem o Node antes do acesso', async () => {
+  const { nodeAntigo } = await import(pathToFileURL(join(MOTOR, 'lib.mjs')).href)
+  confere(nodeAntigo('18.20.4') && nodeAntigo('20.8.1') && !nodeAntigo('20.9.0') && !nodeAntigo('v22.11.0') && !nodeAntigo(process.versions.node), 'régua da versão')
+  const skills = join(MOTOR, '..', 'skills')
+  for (const s of ['explicar-fluxo', 'explicar-agente', 'investigar-teste', 'criar-fluxo', 'criar-agente', 'editar-fluxo', 'editar-agente']) {
+    confere(readFileSync(join(skills, s, 'SKILL.md'), 'utf8').includes('`node --version`'), `${s} confere o Node no passo 1`)
+  }
+  confere(/winget install --id OpenJS\.NodeJS\.LTS/.test(readFileSync(join(MOTOR, '..', 'referencias', 'acesso.md'), 'utf8')), 'a referência ensina a instalar')
+})
+
 await caso('acesso: permissão e módulo que faltam aparecem com o que fazer', async () => {
   acessoCom('sk_leitura')
   const r = await roda('acesso.mjs', ['conferir', '--para=editar-fluxo'])
