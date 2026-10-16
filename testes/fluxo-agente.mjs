@@ -588,6 +588,7 @@ await caso('explicar-fluxo: página sem nenhum endereço externo, com desenho, p
   confere(!html.includes('<script>alert(1)</script>') && html.includes('&lt;script&gt;'), 'texto escapado')
   confere(/não se responsabiliza/.test(html) && /exhausted_captura/.test(html) && /<strong>negociação<\/strong>/.test(html), 'aviso e problemas')
   confere(/class="logo"/.test(html) && /font-family:"Barlow"/.test(html) && /data:font\/woff2;base64,/.test(html) && /#2253f5/i.test(html), 'cara do Cubo: logo, Barlow embutida e o azul')
+  confere(!/prefers-color-scheme|data-theme="dark"/.test(html) && /--fundo:#e9eefe/.test(html), 'só o modo claro, com o fundo azul-clarinho do Cubo')
   confere(/class="etiqueta /.test(html) && /class="ir" href="#passo-/.test(html) && /class="cabeca" style="fill:#/.test(html), 'etiquetas, botões de passo e nós com a cor do tipo')
   // O bloco para a conversa: fatos em tabela, pontos de atenção em tabela e o caminho da página.
   confere(/RESPOSTA PARA A PESSOA/.test(r.saida) && r.saida.includes('| Situação | Começa quando | Passos | Problemas |') && r.saida.includes('| Tipo | Onde | O que acontece |') && r.saida.includes('fluxo-701.html'), r.saida)

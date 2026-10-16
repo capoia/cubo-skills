@@ -114,7 +114,8 @@ export function etiquetasDoFluxo(descricao, problemas, extra = []) {
   ].filter(Boolean)
 }
 
-const caixaDoIcone = (tipo, simbolo = iconeDoTipo(tipo)) => `<span class="ic-caixa" style="background:${corDoTipo(tipo)}">${icone(simbolo, { tamanho: 18 })}</span>`
+// Quadradinho claro com o ícone na cor do tipo, como os cards de automação do Cubo.
+const caixaDoIcone = (tipo, simbolo = iconeDoTipo(tipo)) => `<span class="ic-caixa" style="background:color-mix(in srgb,${corDoTipo(tipo)} 14%,#fff);color:${corDoTipo(tipo)}">${icone(simbolo, { tamanho: 20 })}</span>`
 
 // A página do fluxo, para explicar ou para mostrar a prévia antes de gravar.
 // textoDoClaude: { resumo, passos: { "<n>": "frase" }, caminhos: [{ titulo, historia }] }

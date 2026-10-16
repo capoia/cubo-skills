@@ -50,22 +50,21 @@ export function listaDeProblemas(problemas) {
     .join('')}</ul>`
 }
 
-// As cores do tema do CRM (oklch convertido) e a marca: azul #2253F5.
-const CLARO = '--fundo:#f5f6fa;--papel:#fff;--tinta:#09090b;--suave:#71717a;--linha:#e4e4e7;--marca:#2253f5;--marca-texto:#1d47d6;--marca-fundo:#eaefff;--erro:#dc2626;--erro-fundo:#fdecec;--aviso:#b45309;--aviso-fundo:#fdf3e1;--nota:#52607a;--nota-fundo:#eef1f6;--ok:#047857;--ok-fundo:#e3f6ee;--sombra:0 1px 3px rgba(9,9,11,.06),0 1px 2px rgba(9,9,11,.04);--aresta:#a1a1aa'
-const ESCURO = '--fundo:#09090b;--papel:#18181b;--tinta:#fafafa;--suave:#a1a1aa;--linha:#2e2e33;--marca:#5b80ff;--marca-texto:#8ea6ff;--marca-fundo:#1a2140;--erro:#f87171;--erro-fundo:#3a1717;--aviso:#fbbf24;--aviso-fundo:#382a0d;--nota:#9fb0c8;--nota-fundo:#1f2530;--ok:#34d399;--ok-fundo:#0f2e22;--sombra:none;--aresta:#71717a'
+// Só o modo claro, como o Cubo: o fundo é o azul da marca a 10% sobre o branco (`bg-primary/10` no
+// layout do CRM), o conteúdo num painel branco arredondado, e os cinzas do tema (`app.css`).
+const CORES = '--fundo:#e9eefe;--papel:#fff;--muted:#f4f4f5;--tinta:#09090b;--suave:#71717a;--linha:#e4e4e7;--marca:#2253f5;--marca-texto:#1d47d6;--marca-fundo:#eaefff;--erro:#dc2626;--erro-fundo:#fdecec;--aviso:#b45309;--aviso-fundo:#fdf3e1;--nota:#52607a;--nota-fundo:#eef1f6;--ok:#047857;--ok-fundo:#e3f6ee;--sombra:0 1px 3px rgba(9,9,11,.06),0 1px 2px rgba(9,9,11,.04);--aresta:#a1a1aa'
 
 const CSS = `${FONTES}
-:root{${CLARO};--raio:10px;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){${ESCURO};color-scheme:dark}}
-:root[data-theme="dark"]{${ESCURO};color-scheme:dark}
+:root{${CORES};--raio:12px;color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;background:var(--fundo);color:var(--tinta);font:16px/1.6 "Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 .ic{flex:none;vertical-align:-2px}
-.barra{background:#fff;border-bottom:1px solid var(--linha)}
-.barra div{max-width:1040px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.barra{background:transparent}
+.barra div{max-width:1120px;margin:0 auto;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .logo{height:30px;width:auto;display:block}
 .barra .tipo-doc{color:#71717a;font-size:.9rem;font-weight:600;letter-spacing:.02em}
-main{max-width:1040px;margin:0 auto;padding:28px 16px 64px}
+main{max-width:1088px;margin:0 auto 40px;padding:32px 40px 40px;background:var(--papel);border-radius:16px;box-shadow:var(--sombra)}
+.moldura{padding:0 16px}
 .kicker{color:var(--marca-texto);font-weight:600;font-size:.9rem;letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px}
 h1{font-size:2rem;line-height:1.15;margin:0 0 12px;font-weight:700;letter-spacing:-.01em}
 .etiquetas{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
@@ -86,7 +85,7 @@ a{color:var(--marca-texto)}
 #resumo .cartao{font-size:1.06rem}
 .gatilhos{display:flex;flex-wrap:wrap;gap:10px;margin:0;padding:0;list-style:none}
 .gatilhos li{display:flex;align-items:center;gap:10px;background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:10px 14px;font-weight:600;box-shadow:var(--sombra)}
-.gatilhos .ic-caixa{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:#3b82f6;color:#fff}
+.gatilhos .ic-caixa{display:grid;place-items:center;width:34px;height:34px;border-radius:8px}
 .rolagem{overflow:auto;background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:8px;box-shadow:var(--sombra);background-image:radial-gradient(var(--linha) 1px,transparent 1px);background-size:18px 18px}
 .rolagem .desenho{display:block;margin:0 auto;max-width:100%;height:auto}
 .rolagem.real .desenho{max-width:none}
@@ -112,7 +111,7 @@ a{color:var(--marca-texto)}
 .passos{display:grid;gap:10px}
 .passo{background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:14px 18px 14px 16px;display:grid;grid-template-columns:36px 1fr;gap:4px 14px;box-shadow:var(--sombra);scroll-margin-top:16px}
 .passo:target{border-color:var(--marca);box-shadow:0 0 0 3px var(--marca-fundo)}
-.passo .ic-caixa{grid-row:span 3;display:grid;place-items:center;width:36px;height:36px;border-radius:9px;color:#fff}
+.passo .ic-caixa{grid-row:span 3;display:grid;place-items:center;width:40px;height:40px;border-radius:8px}
 .passo h3{margin:0;font-size:1.05rem;line-height:1.3;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
 .passo h3 .n{color:var(--suave);font-weight:600}
 .passo .tipo{color:var(--suave);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.03em}
@@ -130,22 +129,22 @@ a{color:var(--marca-texto)}
 .onde{color:var(--suave);font-size:.9rem}
 .tecnico{margin-top:8px;font-size:.85rem;color:var(--suave)}.tecnico summary{cursor:pointer}.tecnico code{display:block;margin-top:6px;word-break:break-all}
 .tudo-ok{display:flex;align-items:center;gap:8px;color:var(--ok);font-weight:700}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--fundo);border:1px solid var(--linha);padding:0 5px;border-radius:5px;font-size:.84em}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--muted);border:1px solid var(--linha);padding:0 5px;border-radius:5px;font-size:.84em}
 .conversa{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .fala{max-width:78%;padding:9px 14px;border-radius:14px;white-space:pre-wrap}
 .fala.user{align-self:flex-end;background:var(--marca);color:#fff;border-bottom-right-radius:4px}
-.fala.assistant{align-self:flex-start;background:var(--fundo);border:1px solid var(--linha);border-bottom-left-radius:4px}
+.fala.assistant{align-self:flex-start;background:var(--muted);border:1px solid var(--linha);border-bottom-left-radius:4px}
 .ferramenta{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:.84rem;color:var(--suave);white-space:normal}
 .custo{color:var(--suave);font-size:.85rem}
 .tabela{overflow-x:auto;background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);box-shadow:var(--sombra)}
 table{border-collapse:collapse;width:100%}
-th{font-size:.82rem;text-transform:uppercase;letter-spacing:.03em;color:var(--suave);font-weight:700;background:var(--fundo)}
+th{font-size:.82rem;text-transform:uppercase;letter-spacing:.03em;color:var(--suave);font-weight:700;background:var(--muted)}
 td,th{border-bottom:1px solid var(--linha);padding:10px 14px;text-align:left;vertical-align:top}
 tr:last-child td{border-bottom:0}
-pre{white-space:pre-wrap;word-break:break-word;background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:14px;font-size:.88rem}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--muted);border:1px solid var(--linha);border-radius:var(--raio);padding:14px;font-size:.88rem}
 details>summary{cursor:pointer;font-weight:600;color:var(--marca-texto)}
 footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--linha);color:var(--suave);font-size:.85rem;display:flex;gap:14px;align-items:flex-start}
-@media (max-width:600px){main{padding:20px 16px 48px}h1{font-size:1.6rem}.indice{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.indice li{flex:none}.rolagem .desenho{min-width:560px}.fala{max-width:92%}.passo{grid-template-columns:1fr}.passo .ic-caixa{display:none}.barra .tipo-doc{display:none}}
+@media (max-width:600px){main{padding:22px 16px 32px;border-radius:12px}h1{font-size:1.6rem}.indice{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.indice li{flex:none}.rolagem .desenho{min-width:560px}.fala{max-width:92%}.passo{grid-template-columns:1fr}.passo .ic-caixa{display:none}.barra .tipo-doc{display:none}}
 `
 
 // Botão do desenho: alterna entre caber na tela e o tamanho real.
@@ -164,7 +163,7 @@ export function pagina({ titulo, subtitulo, etiquetas = [], tipoDocumento = 'Aut
 </head>
 <body>
 <header class="barra"><div>${LOGO}<span class="tipo-doc">${esc(tipoDocumento)}</span></div></header>
-<main>
+<div class="moldura"><main>
 ${subtitulo ? `<p class="kicker">${esc(subtitulo)}</p>` : ''}
 <h1>${esc(titulo)}</h1>
 ${etiquetas.length ? `<div class="etiquetas">${etiquetas.map(etiqueta).join('')}</div>` : ''}
@@ -172,7 +171,7 @@ ${etiquetas.length ? `<div class="etiquetas">${etiquetas.map(etiqueta).join('')}
 <div class="aviso-topo">${icone('triangle-alert', { tamanho: 16 })}<span>${esc(AVISO)}</span></div>
 ${visiveis.map((s) => `<section id="${esc(s.id)}"><h2>${esc(s.titulo)}</h2>${s.html}</section>`).join('\n')}
 <footer><span>Gerado em ${esc(new Date().toLocaleString('pt-BR'))} pelas skills do Cubo. ${esc(AVISO)}</span></footer>
-</main>
+</main></div>
 <script>${SCRIPT}</script>
 </body>
 </html>
