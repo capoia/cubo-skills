@@ -4,7 +4,7 @@
 // seguir enquanto faltar algo.
 import { chmodSync, existsSync, writeFileSync } from 'node:fs'
 import { acesso, api, arquivoDeAcesso } from './api.mjs'
-import { abrirNoSistema, argumentos, falha, gravarJson, pasta } from './lib.mjs'
+import { NODE_MINIMO, abrirNoSistema, argumentos, falha, gravarJson, nodeAntigo, pasta } from './lib.mjs'
 
 const USO = `uso:
   acesso.mjs abrir                                 cria o arquivo de acesso (se faltar) e abre no editor
@@ -138,6 +138,8 @@ async function conferir() {
   if (certo) gravarJson(pasta('conta.json'), { companyId: empresa.id, nome: empresa.name ?? `conta nº ${empresa.id}`, base: config.base, usuario: eu.user ?? null, escopos: eu.apiKey ?? null })
   termina()
 }
+
+if (nodeAntigo()) falha(`o Node desta máquina é o ${process.versions.node}, e as skills pedem o ${NODE_MINIMO} ou mais novo. Atualize como em “O Node” (referencias/acesso.md) e reabra o Claude Code.`, 1)
 
 const comando = process.argv[2]
 if (comando === 'abrir') abrir()

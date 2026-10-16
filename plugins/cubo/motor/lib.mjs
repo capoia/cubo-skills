@@ -5,6 +5,14 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFil
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 
+// A versão mínima do Node, a mesma da skill de landing. Mais velho, o acesso.mjs para e diz como atualizar.
+export const NODE_MINIMO = '20.9'
+export function nodeAntigo(versao = process.versions.node) {
+  const [maior, menor] = String(versao).replace(/^v/, '').split('.').map(Number)
+  const [minimoMaior, minimoMenor] = NODE_MINIMO.split('.').map(Number)
+  return maior < minimoMaior || (maior === minimoMaior && menor < minimoMenor)
+}
+
 export function falha(mensagem, codigo = 1) {
   console.error(`\n✘ ${mensagem}`)
   process.exit(codigo)

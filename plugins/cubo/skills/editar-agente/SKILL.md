@@ -37,7 +37,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 
 ## Passos
 
-1. **Acesso.** `node "<motor>/acesso.mjs" conferir --para=editar-agente` (com `--simular` se for
+1. **Node e acesso.** `node --version` (sem Node, ou abaixo da 20.9: siga “O Node” em
+   [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md), que instala junto com a pessoa). Depois
+   `node "<motor>/acesso.mjs" conferir --para=editar-agente` (com `--simular` se for
    testar).
 2. **Ler.** `node "<motor>/agente/editar.mjs" ler <número ou nome>`. Guarda a cópia, separa o
    prompt e a configuração em dois arquivos e mostra onde o agente é usado.

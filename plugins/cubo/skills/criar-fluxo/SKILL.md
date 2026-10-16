@@ -33,7 +33,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 
 ## Passos
 
-1. **Acesso.** `node "<motor>/acesso.mjs" conferir --para=criar-fluxo`.
+1. **Node e acesso.** `node --version` (sem Node, ou abaixo da 20.9: siga “O Node” em
+   [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md), que instala junto com a pessoa). Depois
+   `node "<motor>/acesso.mjs" conferir --para=criar-fluxo`.
 2. **Entrevista curta** (clicável): o que faz o fluxo começar (veja os gatilhos em
    `catalogo.mjs resumo`), o que deve acontecer, onde termina. Pergunte o texto das mensagens se a
    pessoa tiver; senão, proponha e mostre.

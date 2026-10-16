@@ -29,7 +29,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 
 ## Passos
 
-1. **Acesso.** `node "<motor>/acesso.mjs" conferir --para=explicar-fluxo`. Faltando, siga
+1. **Node e acesso.** `node --version` (sem Node, ou abaixo da 20.9: siga “O Node” em
+   [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md), que instala junto com a pessoa). Depois
+   `node "<motor>/acesso.mjs" conferir --para=explicar-fluxo`. Faltando, siga
    [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md) e confira de novo.
 2. **Preparar.** `node "<motor>/fluxo/explicar.mjs" preparar <número ou nome>`.
    - Saída 3: há mais de um fluxo com esse nome. Pergunte qual (clicável) e rode com o número.

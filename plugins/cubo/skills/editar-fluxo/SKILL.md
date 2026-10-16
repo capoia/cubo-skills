@@ -35,7 +35,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 
 ## Passos
 
-1. **Acesso.** `node "<motor>/acesso.mjs" conferir --para=editar-fluxo`.
+1. **Node e acesso.** `node --version` (sem Node, ou abaixo da 20.9: siga “O Node” em
+   [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md), que instala junto com a pessoa). Depois
+   `node "<motor>/acesso.mjs" conferir --para=editar-fluxo`.
 2. **Ler.** `node "<motor>/fluxo/editar.mjs" ler <número ou nome>`. Guarda a cópia de segurança e
    mostra o roteiro. Repasse os avisos: fluxo **ligado**, ou com **mudanças não publicadas** (a
    edição vai em cima delas, e publicar leva tudo junto).

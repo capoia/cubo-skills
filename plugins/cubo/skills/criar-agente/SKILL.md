@@ -33,7 +33,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 
 ## Passos
 
-1. **Acesso.** `node "<motor>/acesso.mjs" conferir --para=criar-agente`.
+1. **Node e acesso.** `node --version` (sem Node, ou abaixo da 20.9: siga “O Node” em
+   [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md), que instala junto com a pessoa). Depois
+   `node "<motor>/acesso.mjs" conferir --para=criar-agente`.
 2. **Entrevista** (clicável): para que serve o agente; o tom; o que ele pode fazer (cada resposta
    vira um chip: mostre as opções de `catalogo.mjs resumo agentes`); quando passa para uma pessoa; se
    cobra resposta (lembretes) e o que fazer quando eles acabam.

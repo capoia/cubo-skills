@@ -27,7 +27,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
 
 ## Passos
 
-1. **Acesso.** `node "<motor>/acesso.mjs" conferir --para=explicar-agente`.
+1. **Node e acesso.** `node --version` (sem Node, ou abaixo da 20.9: siga “O Node” em
+   [acesso.md](${CLAUDE_PLUGIN_ROOT}/referencias/acesso.md), que instala junto com a pessoa). Depois
+   `node "<motor>/acesso.mjs" conferir --para=explicar-agente`.
 2. **Preparar.** `node "<motor>/agente/explicar.mjs" preparar <número ou nome>` (saída 3: pergunte
    qual). Ele traz as ferramentas com os nomes, os lembretes, onde o agente é usado, os problemas e o
    prompt anotado (prompt longo: leia o arquivo que ele indicar, inteiro).
