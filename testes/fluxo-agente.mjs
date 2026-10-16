@@ -176,6 +176,24 @@ banco.automations.push({ id: 701, name: 'Boas-vindas', status: 'active', publish
   return d
 })(), updatedAt: '2026-10-01T00:00:00.000Z' })
 banco.automations.push({ id: 702, name: 'Recontato', status: 'draft', publishedVersion: null, hasUnpublishedChanges: true, published: null, draft: { nodes: [{ id: 'start', type: 'start', data: { triggers: [] } }, { id: 'sf', type: 'start_flow', data: { automationId: 701 } }], edges: [{ id: 'a', source: 'start', target: 'sf' }] }, updatedAt: '2026-10-01T00:00:00.000Z' })
+// O caso do fluxo 1147: manda o PDF e uma mensagem, e chama o agente na hora, sem pergunta do contato.
+const fluxo704 = { nodes: [{ id: 'start', type: 'start', data: { triggers: [] } }, { id: 'pdf', type: 'send_message', data: { label: 'Qualquer dúvida', message: 'Qualquer dúvida é só perguntar' } }, { id: 'ag', type: 'agent_call', data: { label: 'Agente tira as dúvidas', agentId: 600 } }], edges: [{ id: 'a', source: 'start', target: 'pdf' }, { id: 'b', source: 'pdf', target: 'ag' }] }
+banco.automations.push({ id: 704, name: 'Proposta: PDF e dúvidas', status: 'active', publishedVersion: 1, hasUnpublishedChanges: false, published: structuredClone(fluxo704), draft: structuredClone(fluxo704), updatedAt: '2026-10-01T00:00:00.000Z' })
+// A conversa do teste, como a API devolve (do mais antigo para o mais novo).
+const msg = (id, hora, fromMe, type, content, extra = {}) => ({ id, conversationId: 900, createdAt: `2026-10-16T13:${hora}.000Z`, fromMe, type, content, metadata: {}, user: null, ...extra })
+banco.conversas = [{ id: 900, channelId: 1, channel: { id: 1, name: 'Numero Cubo' }, people: { name: 'Contato Teste' }, status: 'awaiting_human', activeAgentId: null, lastMessageAt: '2026-10-16T13:51:25.000Z', lastMessage: { content: 'Bot finalizado' } }]
+banco.mensagens = [
+  msg(1, '13:00', false, 'text', 'me manda o pdf'),
+  msg(2, '14:00', true, 'system', '🤖 Bot "Proposta: PDF e dúvidas" iniciado', { metadata: { lifecycle: 'open', executionId: 11 } }),
+  msg(3, '15:00', true, 'document', 'Proposta.pdf'),
+  msg(4, '15:10', true, 'text', 'Qualquer dúvida é só perguntar'),
+  msg(5, '15:20', true, 'system', '🤖 Bot "Proposta: PDF e dúvidas" encerrado', { metadata: { lifecycle: 'close', executionId: 11 } }),
+  msg(6, '16:00', false, 'text', 'quem é a Nuvaro?'),
+  msg(7, '50:00', true, 'system', '🤖 Bot "Proposta: PDF e dúvidas" iniciado', { metadata: { lifecycle: 'open', executionId: 12 } }),
+  msg(8, '51:09', true, 'text', 'Qualquer dúvida é só perguntar'),
+  msg(9, '51:18', true, 'system', '👤 Transferido para atendimento humano. Resumo: Cliente pediu o PDF'),
+  msg(10, '51:25', true, 'system', '🤖 Bot "Proposta: PDF e dúvidas" finalizado', { metadata: { lifecycle: 'close', executionId: 12 } }),
+]
 banco.automations.push({ id: 703, name: 'Boas-vindas antigas', status: 'draft', publishedVersion: null, hasUnpublishedChanges: true, published: null, draft: { nodes: [], edges: [] }, updatedAt: '2026-10-01T00:00:00.000Z' })
 
 // Refs: o que o extrator do CRM faz, só para os campos usados aqui.
@@ -295,6 +313,19 @@ const servidor = createServer(async (req, res) => {
 
   if (caminho === '/api/whoami') {
     return responde(200, { data: { company: { id: 7, name: 'Loja Teste' }, user: { id: 1, name: chave.admin ? 'Dona' : 'Zé', isAdmin: chave.admin }, apiKey: { scopes: chave.escopos, fullAccess: (chave.escopos['*'] || []).includes('*') }, modules: { activeSlugs: chave.modulos } } })
+  }
+
+  // --- conversas (só leitura, para investigar um teste)
+  if (caminho === '/api/conversations' && req.method === 'GET') {
+    if (!exige('conversations', 'read')) return
+    const canal = url.searchParams.get('channel')
+    return responde(200, lista(banco.conversas.filter((c) => !canal || String(c.channelId) === canal), url))
+  }
+  let conversa
+  if ((conversa = m(/^\/api\/conversations\/(\d+)\/messages$/)) && req.method === 'GET') {
+    if (!exige('conversations', 'read')) return
+    const daConversa = banco.mensagens.filter((x) => x.conversationId === Number(conversa[1]))
+    return responde(200, lista(url.searchParams.get('order') === 'desc' ? [...daConversa].reverse() : daConversa, url))
   }
 
   // --- automações
@@ -600,6 +631,24 @@ await caso('null e arquivo: null em campo de texto é erro; passo novo sem o "" 
   confere(nomes.existe('file', link) === null, 'tipo sem lista: não se sabe')
   const { copia, quebrados } = comNomes({ flowData: { nodes: [{ id: 'm', type: 'send_media', data: { mediaUrl: link } }] }, refs: [{ path: 'flowData.nodes[0].data.mediaUrl', kind: 'file', id: link }] }, nomes)
   confere(!quebrados.length && copia.flowData.nodes[0].data.mediaUrl === link, 'o link fica como está e não acusa nada')
+})
+
+await caso('investigar-teste: acha a conversa, monta a linha do tempo e aponta robô parado, sem resposta, transferência e agente sem pergunta', async () => {
+  acessoCom('sk_leitura')
+  const sem = await roda('acesso.mjs', ['conferir', '--para=investigar-teste'])
+  confere(sem.codigo === 1 && /"Conversas: leitura"/.test(sem.saida), sem.saida)
+  acessoCom('sk_tudo')
+  const achar = await roda('conversa.mjs', ['achar', '--canal=1'])
+  confere(achar.codigo === 0 && /#900 · canal Numero Cubo/.test(achar.saida), achar.saida)
+  const r = await roda('conversa.mjs', ['linha', '900'])
+  confere(r.codigo === 0, r.saida)
+  confere(/fluxo #704/.test(r.saida) && /chama o agente SDR \(#600\)/.test(r.saida), `robô com o fluxo e o agente: ${r.saida}`)
+  confere(/PAROU NO MEIO/.test(r.saida) && /\[robo_parou\].*“Qualquer dúvida é só perguntar” deve ter dado erro/.test(r.saida), `execução encerrada: ${r.saida}`)
+  confere(/\[sem_resposta\] “quem é a Nuvaro\?” ficou sem resposta/.test(r.saida), `pergunta sem resposta: ${r.saida}`)
+  confere(/\[transferiu\].*Cliente pediu o PDF/.test(r.saida) && /\[com_pessoa\]/.test(r.saida), `transferência e conversa com pessoa: ${r.saida}`)
+  confere(existsSync(join(PASTA, 'cubo', 'investigacoes', 'conversa-900.json')), 'guarda a investigação')
+  const f = await roda('fluxo/explicar.mjs', ['preparar', '704', '--sem-usos'])
+  confere(/agente_sem_pergunta/.test(f.saida) && /Fazer pergunta/.test(f.saida), `o fluxo acusa o agente chamado sem pergunta: ${f.saida}`)
 })
 
 await caso('explicar-fluxo: nunca publicado explica o rascunho e avisa', async () => {

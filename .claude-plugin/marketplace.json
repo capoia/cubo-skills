@@ -8,7 +8,7 @@
     {
       "name": "cubo",
       "source": "./plugins/cubo",
-      "version": "4.4.0",
+      "version": "4.5.0",
       "description": "Landing page em HTML no Cubo (/cubo:criar-landing-html), cópia de conta (/cubo:migrar-conta) e explicar, criar e editar fluxos e agentes de IA.",
       "author": {
         "name": "Cubo Suite"
