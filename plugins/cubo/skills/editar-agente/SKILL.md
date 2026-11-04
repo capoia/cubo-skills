@@ -32,7 +32,11 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
    [itens.md](${CLAUDE_PLUGIN_ROOT}/referencias/itens.md)).
 5. **Pergunte antes de gravar**, dizendo **onde o agente é usado** e o aviso de responsabilidade.
    **Simulação gasta tokens: pergunte antes.**
-6. **Para conferir depois de gravar, use `node "<motor>/agente/explicar.mjs" preparar <id> --sem-usos`**, não o `ler`:
+6. **O prompt final tem no máximo 40.000 caracteres**, e a prévia confere. Passou: mostre o que iria
+   para uma base de conhecimento e pergunte antes, sem tirar regra nem comportamento
+   ([chips.md](${CLAUDE_PLUGIN_ROOT}/referencias/chips.md), “Tamanho do prompt”). É a única exceção a
+   “mude só o que foi pedido”.
+7. **Para conferir depois de gravar, use `node "<motor>/agente/explicar.mjs" preparar <id> --sem-usos`**, não o `ler`:
    o `ler` começa outra edição.
 
 ## Passos

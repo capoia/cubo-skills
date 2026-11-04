@@ -123,7 +123,7 @@ export const AREAS = [
     },
   },
   { kind: 'agent_folder', rotulo: 'Pastas de agentes', rota: '/api/agent-folders', escopo: 'agents', nome: (r) => `${r.parentId ?? ''}|${nome(r)}`, nomeUnico: true, modulo: 'ai-agents' },
-  { kind: 'agent', rotulo: 'Agentes de IA', rota: '/api/agents', escopo: 'agents', textoGrande: ['systemPrompt'], nomeUnico: true, modulo: 'ai-agents' },
+  { kind: 'agent', rotulo: 'Agentes de IA', rota: '/api/agents', escopo: 'agents', textoGrande: ['systemPrompt'], nomeUnico: true, modulo: 'ai-agents', limites: { systemPrompt: 40_000 }, dicaLimite: 'Enxugue o prompt na conta antiga (conteúdo de consulta pode ir para uma base de conhecimento) e rode o plano de novo.' },
   {
     kind: 'domain', rotulo: 'Domínios', rota: '/api/domains', escopo: 'domains',
     nome: (r) => String(r.domain ?? '').trim().toLowerCase(),

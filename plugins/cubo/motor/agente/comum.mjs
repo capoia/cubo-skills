@@ -13,6 +13,17 @@ import { descreverChips, fraseDoChip, lerChips } from './chips.mjs'
 // `allowKnowledgeWriting` saíram: nada disso vai para o Cubo.
 export const CAMPOS_FORA = ['id', 'updatedAt', 'createdAt', 'refs', 'warnings', 'handoffTargets', 'enabledMcpConnections', 'allowKnowledgeWriting', 'companyId']
 
+// O mesmo limite da tela e da API do Cubo: acima dele, tudo responde 422. Conta sem as pontas, como o Cubo.
+export const LIMITE_PROMPT = 40_000
+const numero = (n) => n.toLocaleString('pt-BR')
+export const tamanhoDoPrompt = (prompt) => String(prompt ?? '').trim().length
+export const excedeLimite = (prompt) => tamanhoDoPrompt(prompt) > LIMITE_PROMPT
+export const textoDoLimite = (prompt) => `o prompt tem ${numero(tamanhoDoPrompt(prompt))} caracteres, e o Cubo aceita até ${numero(LIMITE_PROMPT)}`
+export function recusarPromptGrande(prompt) {
+  if (!excedeLimite(prompt)) return
+  falha(`${textoDoLimite(prompt)}. Nada foi gravado. Enxugue antes de seguir: conteúdo informativo (produtos, documentação, perguntas frequentes) pode ir para uma base de conhecimento, sem tirar instruções nem regras do agente. Veja “Tamanho do prompt” em referencias/chips.md.`, 1)
+}
+
 export function corpoGravavel(agente) {
   const corpo = {}
   for (const [chave, valor] of Object.entries(agente || {})) if (!CAMPOS_FORA.includes(chave) && valor !== undefined) corpo[chave] = valor
