@@ -13,7 +13,7 @@ import { esc } from '../pagina.mjs'
 import { quemUsaAgente, varrer } from '../usos.mjs'
 import { contarProblemas, problemasEmTexto } from '../fluxo/comum.mjs'
 import { fraseDoChip } from './chips.mjs'
-import { acharAgente, contextoAgente, corpoGravavel, descreverAgente, gravarAgente, juntarProblemasAgente, lerAgente, modeloSemFerramentas, paginaDoAgente, roteiroAgente, validarAgente } from './comum.mjs'
+import { acharAgente, contextoAgente, corpoGravavel, descreverAgente, excedeLimite, gravarAgente, juntarProblemasAgente, lerAgente, modeloSemFerramentas, paginaDoAgente, recusarPromptGrande, roteiroAgente, textoDoLimite, validarAgente } from './comum.mjs'
 import { diferencaDeConfig, diferencaEmTexto } from './diferenca.mjs'
 import { basename } from 'node:path'
 
@@ -45,6 +45,7 @@ async function ler(alvo) {
   console.log(`\nCópia de segurança guardada: ${copia}`)
   console.log(`Para mudar, edite os arquivos (mude só o que foi pedido) e rode a prévia:\n  prompt:        ${arquivoPrompt(id)}\n  configuração:  ${arquivoConfig(id)}`)
   console.log(`  editar.mjs previa ${id} --prompt=@"${arquivoPrompt(id)}" --config=@"${arquivoConfig(id)}"`)
+  if (excedeLimite(systemPrompt)) console.log(`\nATENÇÃO: ${textoDoLimite(systemPrompt)}. Qualquer gravação, mesmo só de configuração, será recusada até o prompt caber no limite. Diga isso à pessoa antes de seguir.`)
   if (usos.length) console.log(`\nATENÇÃO: agente não tem rascunho. Este agente está em uso, e o que for gravado vale para as próximas mensagens:\n${usosEmTexto(usos)}`)
 }
 
@@ -53,6 +54,7 @@ async function previa(id, opcoes) {
   const prompt = opcoes.prompt ? lerEntrada(opcoes.prompt, 'prompt') : t.agente.systemPrompt
   const config = opcoes.config ? lerJsonEntrada(opcoes.config, 'configuração') : (({ systemPrompt, ...resto }) => resto)(t.agente)
   if (config.systemPrompt !== undefined) falha('o prompt vai no arquivo do prompt, não na configuração.', 2)
+  recusarPromptGrande(prompt)
   const novo = corpoGravavel({ ...config, systemPrompt: prompt })
   const validacao = await validarAgente(novo, id)
   const ctx = await contextoAgente({ ...novo, refs: [] })
@@ -133,6 +135,7 @@ async function gravar(id) {
 async function desfazer(id, opcoes) {
   const trabalhoAtual = lerJson(arquivoTrabalho(id), null)
   const { conteudo: copia, arquivo, quando } = pegarCopia('agente', id, opcoes.copia ?? (trabalhoAtual?.copiaGravada ? basename(trabalhoAtual.copiaGravada) : null))
+  if (excedeLimite(copia.corpo?.systemPrompt)) falha(`a cópia não pode voltar: ${textoDoLimite(copia.corpo.systemPrompt)}. Nada foi gravado. Enxugue o prompt da cópia (${arquivo}) e grave pela prévia.`, 1)
   const { etag } = await lerAgente(id)
   console.log(`Voltando o agente #${id} à cópia de ${quando.replace('T', ' ')} (${arquivo}).`)
   await gravarAgente(id, corpoGravavel(copia.corpo), etag)

@@ -257,6 +257,10 @@ function catalogoAgentes() {
 }
 
 const CHIP_RE = /\{\{tool:([a-zA-Z0-9_]+)(?:\(([^)]*)\))?\}\}/g
+const LIMITE_PROMPT = 40_000
+const promptGrande = (corpo) => typeof corpo?.systemPrompt === 'string' && corpo.systemPrompt.trim().length > LIMITE_PROMPT
+const recusaPromptGrande = () => ({ errors: [{ message: `The systemPrompt field must not be greater than ${LIMITE_PROMPT} characters`, rule: 'maxLength', field: 'systemPrompt', meta: { max: LIMITE_PROMPT } }] })
+
 function validarAgente(corpo, existente = null) {
   const errors = []
   const warnings = []
@@ -415,10 +419,15 @@ const servidor = createServer(async (req, res) => {
     if (req.headers['if-none-match'] === etag) return responde(304, undefined, { ETag: etag })
     return responde(200, cat, { ETag: etag })
   }
-  if (caminho === '/api/agents/validate' && req.method === 'POST') return exige('agents', 'read') && responde(200, validarAgente(corpo))
+  if (caminho === '/api/agents/validate' && req.method === 'POST') {
+    if (!exige('agents', 'read')) return
+    if (promptGrande(corpo)) return responde(422, recusaPromptGrande())
+    return responde(200, validarAgente(corpo))
+  }
   if ((achado = m(/^\/api\/agents\/(\d+)\/validate$/)) && req.method === 'POST') {
     if (!exige('agents', 'read')) return
     const ag = banco.agents.find((x) => x.id === Number(achado[1]))
+    if (promptGrande(corpo)) return responde(422, recusaPromptGrande())
     return responde(200, validarAgente({ ...ag, ...corpo }, ag))
   }
   if ((achado = m(/^\/api\/agents\/(\d+)\/simulate$/)) && req.method === 'POST') {
@@ -441,6 +450,7 @@ const servidor = createServer(async (req, res) => {
   if (caminho === '/api/agents' && req.method === 'POST') {
     if (!exige('agents', 'create')) return
     if (!chave.admin) return responde(403, { message: 'Só administrador' })
+    if (promptGrande(corpo)) return responde(422, recusaPromptGrande())
     const v = validarAgente(corpo)
     if (!v.ok) return responde(422, { message: 'Chip com problema', errors: v.errors })
     const ag = { ...corpo, id: proximo(), updatedAt: new Date().toISOString() }
@@ -466,6 +476,7 @@ const servidor = createServer(async (req, res) => {
         ag.updatedAt = new Date(Date.now() + 1000).toISOString()
       }
       if (req.headers['if-match'] && req.headers['if-match'] !== etagDe(ag)) return responde(412, { message: 'Precondition failed' })
+      if (promptGrande(corpo)) return responde(422, recusaPromptGrande())
       const v = validarAgente({ ...ag, ...corpo }, ag)
       if (!v.ok) return responde(422, { message: 'Chip com problema', errors: v.errors })
       chamadas.puts.push({ id: ag.id, corpo, ifMatch: req.headers['if-match'] ?? null })
@@ -916,6 +927,33 @@ await caso('criar-agente: modelos, prévia com modelo sem ferramentas acusado, c
   const criado = banco.agents.at(-1)
   confere(g.codigo === 0 && banco.agents.length === antes + 1 && Array.isArray(criado.enabledTools) && !criado.enabledTools.length && !('handoffTargets' in criado) && /não apaga agente/.test(g.saida), g.saida)
   confere((await roda('agente/criar.mjs', ['gravar'])).saida.includes('já foi criado') && banco.agents.length === antes + 1, 'não duplica')
+})
+
+await caso('agente: prompt acima de 40 mil caracteres é recusado na prévia, com o tamanho e o que fazer', async () => {
+  const aviso = /45\.000.*40\.000|40\.000.*45\.000/s
+  escreve('prompt-grande.md', 'x'.repeat(45_000))
+  const criar = await roda('agente/criar.mjs', ['previa', '--outro', '--nome=Grande', '--integracao=90', '--modelo=gpt-4o', `--prompt=@${join(PASTA, 'prompt-grande.md')}`])
+  confere(criar.codigo === 1 && aviso.test(criar.saida) && /base de conhecimento/.test(criar.saida), criar.saida)
+  const editar = await roda('agente/editar.mjs', ['previa', '600', `--prompt=@${join(PASTA, 'prompt-grande.md')}`])
+  confere(editar.codigo === 1 && aviso.test(editar.saida) && /base de conhecimento/.test(editar.saida), editar.saida)
+  escreve('prompt-limite.md', 'x'.repeat(40_000))
+  const noLimite = await roda('agente/criar.mjs', ['previa', '--outro', '--nome=No limite', '--integracao=90', '--modelo=gpt-4o', `--prompt=@${join(PASTA, 'prompt-limite.md')}`])
+  confere(noLimite.codigo === 0, noLimite.saida)
+})
+
+await caso('editar-agente: agente que já passou do limite é avisado ao ler; o desfazer não tenta gravar cópia grande', async () => {
+  const antigo = banco.agents.find((a) => a.id === 600)
+  const prompt = antigo.systemPrompt
+  const atualizado = antigo.updatedAt
+  antigo.systemPrompt = 'x'.repeat(42_000)
+  const l = await roda('agente/editar.mjs', ['ler', '600'])
+  confere(l.codigo === 0 && /42\.000/.test(l.saida) && /40\.000/.test(l.saida), l.saida)
+  antigo.systemPrompt = 'pequeno o bastante'
+  const copia = JSON.parse(le('cubo/trabalho/agente-600.json')).copia
+  const d = await roda('agente/editar.mjs', ['desfazer', '600', `--copia=${copia.split(/[\\/]/).at(-1)}`])
+  confere(d.codigo === 1 && /42\.000/.test(d.saida) && antigo.systemPrompt === 'pequeno o bastante', d.saida)
+  antigo.systemPrompt = prompt
+  antigo.updatedAt = atualizado
 })
 
 servidor.close()

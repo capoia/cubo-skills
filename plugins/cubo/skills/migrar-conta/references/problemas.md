@@ -18,6 +18,9 @@ O motivo vem escrito. Os mais comuns:
   para corrigir a skill.
 - **"tem N caracteres, e a conta nova aceita até 200.000"**: base de conhecimento grande demais
   para a conta nova. A pessoa divide em duas na conta antiga, e o `plano` roda de novo.
+- **"tem N caracteres, e a conta nova aceita até 40.000"**: prompt de agente grande demais, o mesmo
+  limite da tela. A pessoa enxuga o prompt na conta antiga (o `/cubo:editar-agente` ajuda), e o
+  `plano` roda de novo.
 - **"espaço de arquivos da conta nova acabou"**: o aplicar para. A pessoa libera espaço ou
   aumenta o plano da conta nova, e roda de novo.
 - **"a conta nova pediu para ir mais devagar (429)"**: o Cubo aceita 240 escritas por minuto por

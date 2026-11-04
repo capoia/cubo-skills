@@ -148,7 +148,7 @@ semear(1, 'agent', [
   {
     id: 601,
     name: 'SDR',
-    systemPrompt: `Você é o SDR. Mova com {{tool:move_deal_stage(pipeId=301,stageId=401)}} e responda com {{tool:answer_from_kb(knowledgeBaseId=501)}}. Cobre com {{tool:mcp_1201_list_invoices}}. Ligue 3010 vezes se preciso. Se travar, use update_deal_field_7777. Campo {{cf.deal.201}}. ${'Texto longo. '.repeat(4000)}`,
+    systemPrompt: `Você é o SDR. Mova com {{tool:move_deal_stage(pipeId=301,stageId=401)}} e responda com {{tool:answer_from_kb(knowledgeBaseId=501)}}. Cobre com {{tool:mcp_1201_list_invoices}}. Ligue 3010 vezes se preciso. Se travar, use update_deal_field_7777. Campo {{cf.deal.201}}. ${'Texto longo. '.repeat(3000)}`,
     followUpConfig: { exhaustedAction: { type: 'start_flow', automationId: 701 } },
     handoffTargets: [{ targetAgentId: 602, whenToUse: 'suporte' }],
   },
@@ -360,7 +360,7 @@ const servidor = createServer((pedido, resposta) => {
       if (pedido.method === 'POST') {
         const novo = { ...corpo, id: proximoId++ }
         if (kind === 'form') novo.publicId = `frm_n${novo.id}`
-        if (kind === 'agent' && falhas.cortarPrompt && novo.systemPrompt) novo.systemPrompt = novo.systemPrompt.slice(0, 40000)
+        if (kind === 'agent' && falhas.cortarPrompt && novo.systemPrompt) novo.systemPrompt = novo.systemPrompt.slice(0, 30000)
         if (kind === 'automation') novo.status = 'draft'
         if (kind === 'stage') novo.orderNr = lista(companyId, 'stage').filter((e) => e.pipeId === novo.pipeId).length + 1
         lista(companyId, kind).push(novo)
@@ -387,6 +387,11 @@ const doDestino = (kind) => lista(2, kind)
 
 // ---------------------------------------------------------------------------------------------
 // Troca de IDs (função pura).
+
+await caso('áreas: prompt de agente tem o limite de 40 mil do Cubo, com a dica de enxugar', async () => {
+  const agente = AREAS.find((a) => a.kind === 'agent')
+  confere(agente.limites?.systemPrompt === 40_000 && /Enxugue o prompt/.test(agente.dicaLimite), JSON.stringify(agente))
+})
 
 await caso('refs: troca dentro do texto respeita a borda (301 não mexe em 3010) e troca vários IDs no mesmo trecho', async () => {
   const registro = { texto: 'A {{tool:move_deal_stage(pipeId=301,stageId=401)}} B 3010 C {{cf.deal.301}}' }
@@ -673,11 +678,11 @@ await caso('conferir: acusa ID não trocado e texto cortado', async () => {
   automacao.flowData.nodes[0].data.automationId = 701
   const sdr = doDestino('agent').find((a) => a.name === 'SDR')
   const prompt = sdr.systemPrompt
-  sdr.systemPrompt = prompt.slice(0, 40000)
+  sdr.systemPrompt = prompt.slice(0, 30000)
   const r = await roda('conferir.mjs')
   automacao.flowData.nodes[0].data.automationId = ledger().mapa.automation['701']
   sdr.systemPrompt = prompt
-  confere(r.codigo === 1 && /número da CONTA ANTIGA/.test(r.saida) && /CORTADO: 40000 de/.test(r.saida), r.saida)
+  confere(r.codigo === 1 && /número da CONTA ANTIGA/.test(r.saida) && /CORTADO: 30000 de/.test(r.saida), r.saida)
   await roda('conferir.mjs')
 })
 

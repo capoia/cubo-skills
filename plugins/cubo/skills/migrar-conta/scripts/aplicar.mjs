@@ -233,7 +233,7 @@ async function processar(chave) {
     const tamanho = typeof corpo[campo] === 'string' ? corpo[campo].trim().length : 0
     if (tamanho > limite) {
       item.status = 'erro'
-      item.erro = `tem ${tamanho.toLocaleString('pt-BR')} caracteres, e a conta nova aceita até ${limite.toLocaleString('pt-BR')}. Divida em duas na conta antiga e rode o plano de novo.`
+      item.erro = `tem ${tamanho.toLocaleString('pt-BR')} caracteres, e a conta nova aceita até ${limite.toLocaleString('pt-BR')}. ${area.dicaLimite ?? 'Divida em duas na conta antiga e rode o plano de novo.'}`
       return
     }
   }

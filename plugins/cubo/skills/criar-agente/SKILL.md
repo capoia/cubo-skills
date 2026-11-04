@@ -30,6 +30,9 @@ Nas referências esse caminho aparece como `<motor>`. **Escreva-o por inteiro em
    [itens.md](${CLAUDE_PLUGIN_ROOT}/referencias/itens.md)).
 4. **Toda pergunta com opções é clicável**, até 4 por vez.
 5. **Pergunte antes de criar** (com o aviso). **Simulação gasta tokens: pergunte antes.**
+6. **O prompt tem no máximo 40.000 caracteres**, e a prévia confere. Conteúdo extenso de consulta
+   (produtos, documentação, perguntas frequentes) vai para uma base de conhecimento, sem tirar regra
+   nem comportamento ([chips.md](${CLAUDE_PLUGIN_ROOT}/referencias/chips.md), “Tamanho do prompt”).
 
 ## Passos
 

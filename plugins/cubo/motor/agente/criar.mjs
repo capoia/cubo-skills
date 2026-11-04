@@ -9,7 +9,7 @@ import { catalogo } from '../catalogo.mjs'
 import { abrirNoSistema, argumentos, falha, gravarJson, gravarTexto, lerEntrada, lerJson, lerJsonEntrada, pasta } from '../lib.mjs'
 import { contarProblemas, problemasEmTexto } from '../fluxo/comum.mjs'
 import { fraseDoChip } from './chips.mjs'
-import { contextoAgente, corpoGravavel, descreverAgente, juntarProblemasAgente, modeloSemFerramentas, paginaDoAgente, validarAgente } from './comum.mjs'
+import { contextoAgente, corpoGravavel, descreverAgente, juntarProblemasAgente, modeloSemFerramentas, paginaDoAgente, recusarPromptGrande, validarAgente } from './comum.mjs'
 
 const arquivoTrabalho = () => pasta('trabalho', 'agente-novo.json')
 
@@ -37,6 +37,7 @@ async function previa(opcoes) {
   const config = opcoes.config ? lerJsonEntrada(opcoes.config, 'configuração') : {}
   const corpo = corpoGravavel({ enabledTools: [], ...config, name: opcoes.nome, integrationId: Number(opcoes.integracao), model: opcoes.modelo, systemPrompt: lerEntrada(opcoes.prompt, 'prompt') })
   corpo.enabledTools = [] // campo antigo: agente novo deixa vazio (as ferramentas vêm dos chips)
+  recusarPromptGrande(corpo.systemPrompt)
   const validacao = await validarAgente(corpo)
   const ctx = await contextoAgente({ ...corpo, refs: [] })
   const descricao = descreverAgente({ ...corpo, id: null }, ctx)
