@@ -629,6 +629,18 @@ await caso('desenho: de cima para baixo, volta pela faixa, passo solto embaixo, 
   confere(largura < 400, `uma coluna só, e não ${largura}px`)
 })
 
+await caso('sortear caminho: cor e ícone do editor, e cada caminho é uma saída com o nome dele', async () => {
+  const { corDoTipo, iconeDoTipo } = await import(pathToFileURL(join(MOTOR, 'tipos.mjs')).href)
+  const { icone } = await import(pathToFileURL(join(MOTOR, 'icones.mjs')).href)
+  const { saidasDoNo } = await import(pathToFileURL(join(MOTOR, 'fluxo', 'modelo.mjs')).href)
+  confere(corDoTipo('ab_split') === '#d946ef', `cor do editor, e não ${corDoTipo('ab_split')}`)
+  confere(iconeDoTipo('ab_split') === 'dices' && icone('dices') !== icone('cog'), 'ícone de dados, e não a engrenagem padrão')
+  const definicao = { outputs: [{ handlesFrom: { list: 'paths', key: 'id' }, label: 'Caminho' }] }
+  const no = { data: { paths: [{ id: 'path_0000000a', name: 'Assumido', weight: 50 }, { id: 'path_0000000b', name: 'Neutro', weight: 50 }] } }
+  const rotulos = saidasDoNo(no, definicao).map((saida) => `${saida.handle}=${saida.rotulo}`)
+  confere(rotulos.join('|') === 'path_0000000a=Caminho: Assumido|path_0000000b=Caminho: Neutro', rotulos.join('|'))
+})
+
 await caso('null e arquivo: null em campo de texto é erro; passo novo sem o "" padrão; link de arquivo não é ref quebrada', async () => {
   const motor = (arquivo) => import(pathToFileURL(join(MOTOR, arquivo)).href)
   const { armadilhas } = await motor('fluxo/armadilhas.mjs')
