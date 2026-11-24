@@ -37,6 +37,38 @@ node "<motor>/agente/simular.mjs" <id> @situacoes.json
 Ele espera sozinho no limite de 10 por minuto e guarda tudo em
 `cubo/explicacoes/agente-<id>.exemplos.json`, que a página usa.
 
+## Agente chamado por um fluxo: dê o mesmo contexto
+
+Sem contexto, a simulação é uma conversa solta: não há negociação nem contato. Agente que usa
+ferramenta de negociação (marcar como perdida, preencher campo, anotar) não tem o número da
+negociação e inventa um, ou desiste. O teste reprova um agente que no fluxo funcionaria.
+
+Quando o agente é chamado pelo passo **Chamar agente** de um fluxo, monte a situação como o fluxo
+chama:
+
+- `negociacao`: o id de uma negociação de verdade da conta, do tipo que o fluxo atende. Ela preenche
+  as variáveis `{{deal.*}}` da instrução. Nada muda nela: escrever só simula.
+- `contato`: o id do contato. Sem ele, vale o da negociação. Ferramentas que leem o contato (agenda)
+  usam este.
+- `instrucao`: o texto do campo "Por que o agente está sendo chamado" do passo, igual, com as mesmas
+  variáveis.
+
+```json
+[
+  { "titulo": "Perdeu o interesse", "objetivo": "deve marcar a negociação como perdida",
+    "negociacao": 1234, "instrucao": "Grupo do teste: Assumido. Negociação desta conversa: dealId={{deal.id}}",
+    "mensagens": ["Oi", "Não tenho mais interesse"] }
+]
+```
+
+O agente só sabe o número da negociação se a instrução disser. Se o prompt dele usa ferramentas de
+negociação e a instrução do passo não tem `{{deal.id}}`, isso é um problema do fluxo, não da
+simulação: proponha incluir `Negociação desta conversa: dealId={{deal.id}}` na instrução do passo.
+
+Negociação ou contato que não é da conta: o Cubo recusa antes de rodar o agente, sem gastar token, e
+o script mostra a mensagem. No resultado, a primeira etapa da execução ("Contexto inicial") mostra a
+instrução já com os valores trocados.
+
 ## Depois
 
 Para cada situação, diga em uma frase se o agente fez o que o `objetivo` pedia. Não esconda resposta
