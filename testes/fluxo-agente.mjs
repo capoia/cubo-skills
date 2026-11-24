@@ -126,7 +126,7 @@ const banco = {
   categories: [],
   lostreasons: [],
 }
-const chamadas = { catalogoAutomacoes: [], catalogoAgentes: [], simulacoes: 0, puts: [], posts: [] }
+const chamadas = { catalogoAutomacoes: [], catalogoAgentes: [], simulacoes: 0, corposSimulacao: [], puts: [], posts: [] }
 const falhas = { simulate429: 0, putMudaNoMeio: false }
 
 const etagDe = (objeto) => `"${createHash('sha1').update(JSON.stringify(objeto)).digest('hex').slice(0, 16)}"`
@@ -437,7 +437,9 @@ const servidor = createServer(async (req, res) => {
       falhas.simulate429--
       return responde(429, { message: 'Too many requests' }, { 'Retry-After': '0' })
     }
+    if (corpo.dealId === 999) return responde(422, { errors: [{ message: 'A negociação 999 não existe nesta conta.' }] })
     chamadas.simulacoes++
+    chamadas.corposSimulacao.push(corpo)
     const ultima = corpo.messages.at(-1)?.content ?? ''
     if (/chave ruim/i.test(ultima)) return responde(200, { executionId: 'x', status: 'error', reply: '', error: 'Incorrect API key provided', isComplete: false, toolCalls: [], usage: { costCents: 0 } })
     const quer = /proposta/i.test(ultima)
@@ -724,6 +726,29 @@ await caso('simular: erro do agente no Cubo aparece com o que fazer, e sai 4', a
   confere(r.codigo === 4 && /deu erro no Cubo: Incorrect API key/.test(r.saida) && /chave da integração de IA/.test(r.saida), r.saida)
   const ex = JSON.parse(le('cubo/explicacoes/agente-600.exemplos.json')).exemplos
   confere(ex.length === 3 && /deu erro/.test(ex.at(-1).turnos[0].erro), 'guarda o erro junto dos exemplos')
+})
+
+await caso('simular: negociação, contato e instrução da situação vão para a API e ficam nos exemplos', async () => {
+  escreve('sit-contexto.json', [
+    { titulo: 'Perdeu o interesse', negociacao: 77, contato: 111, instrucao: 'Grupo do teste: Assumido. dealId={{deal.id}}', mensagens: ['Oi', 'Não quero mais'] },
+    { titulo: 'Sem contexto', mensagens: ['Oi'] },
+  ])
+  chamadas.corposSimulacao.length = 0
+  const r = await roda('agente/simular.mjs', ['602', `@${join(PASTA, 'sit-contexto.json')}`])
+  confere(r.codigo === 0, r.saida)
+  const [primeira, segunda, semContexto] = chamadas.corposSimulacao
+  confere(primeira?.dealId === 77 && primeira?.personId === 111 && primeira?.callerInstruction === 'Grupo do teste: Assumido. dealId={{deal.id}}', JSON.stringify(primeira))
+  confere(segunda?.dealId === 77 && segunda?.messages.length === 3, `a segunda fala repete o contexto: ${JSON.stringify(segunda)}`)
+  confere(semContexto && !('dealId' in semContexto) && !('personId' in semContexto) && !('callerInstruction' in semContexto), `sem contexto, o corpo é só messages: ${JSON.stringify(semContexto)}`)
+  const ex = JSON.parse(le('cubo/explicacoes/agente-602.exemplos.json')).exemplos
+  confere(ex[0].contexto?.negociacao === 77 && ex[0].contexto?.instrucao.startsWith('Grupo do teste') && ex[1].contexto === null, JSON.stringify(ex.map((e) => e.contexto)))
+})
+
+await caso('simular: negociação que não existe na conta para antes de gastar token, com a mensagem do Cubo', async () => {
+  escreve('sit-negociacao-errada.json', [{ titulo: 'Errada', negociacao: 999, mensagens: ['Oi'] }])
+  const antes = chamadas.simulacoes
+  const r = await roda('agente/simular.mjs', ['602', `@${join(PASTA, 'sit-negociacao-errada.json')}`])
+  confere(r.codigo === 4 && /negociação 999 não existe nesta conta/.test(r.saida) && chamadas.simulacoes === antes, r.saida)
 })
 
 await caso('explicar-agente: página com conversas, ferramentas, onde é usado e o prompt escapado', async () => {

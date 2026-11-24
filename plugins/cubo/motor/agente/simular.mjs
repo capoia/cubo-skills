@@ -6,6 +6,11 @@
 //   simular.mjs <id> @situacoes.json
 //   situacoes.json: [{ "titulo": "…", "objetivo": "…", "mensagens": ["fala 1 do cliente", "fala 2"] }]
 //
+// Opcionais por situação, para a conversa ser igual à de um fluxo: "negociacao" (id da negociação
+// ligada à conversa, que preenche as variáveis {{deal.*}} da instrução), "contato" (id do contato;
+// sem ele, vale o da negociação) e "instrucao" (o texto do passo Chamar agente, com as mesmas
+// variáveis). Negociação ou contato de outra conta: o Cubo recusa antes de rodar o agente.
+//
 // Cada fala do cliente é uma chamada (com a conversa até ali). O Cubo aceita 10 por minuto por
 // chave: o script espera sozinho quando chega no teto.
 import { api } from '../api.mjs'
@@ -35,6 +40,20 @@ if (!/^\d+$/.test(String(id ?? '')) || !entrada) falha('uso: simular.mjs <id> @s
 const situacoes = lerJsonEntrada(entrada, 'lista de situações')
 if (!Array.isArray(situacoes) || !situacoes.length) falha('a lista de situações está vazia.', 2)
 if (situacoes.length > MAXIMO_DE_SITUACOES) falha(`no máximo ${MAXIMO_DE_SITUACOES} situações por vez (cada uma gasta tokens).`, 2)
+const idOpcional = (valor, nome) => {
+  if (valor === undefined || valor === null || valor === '') return undefined
+  if (!/^\d+$/.test(String(valor))) falha(`"${nome}" precisa ser o número (id) do Cubo, veio: ${valor}`, 2)
+  return Number(valor)
+}
+function contextoDe(situacao) {
+  const contexto = {
+    dealId: idOpcional(situacao.negociacao, 'negociacao'),
+    personId: idOpcional(situacao.contato, 'contato'),
+    callerInstruction: typeof situacao.instrucao === 'string' && situacao.instrucao.trim() ? situacao.instrucao : undefined,
+  }
+  return Object.fromEntries(Object.entries(contexto).filter(([, valor]) => valor !== undefined))
+}
+
 for (const s of situacoes) {
   if (!s.titulo || !Array.isArray(s.mensagens) || !s.mensagens.length) falha('cada situação precisa de "titulo" e "mensagens" (as falas do cliente).', 2)
   if (s.mensagens.length > MAXIMO_DE_FALAS) falha(`no máximo ${MAXIMO_DE_FALAS} falas do cliente por situação.`, 2)
@@ -48,11 +67,12 @@ for (const [i, situacao] of situacoes.entries()) {
   console.log(`\n${i + 1}/${situacoes.length} — ${situacao.titulo}`)
   const historico = []
   const turnos = []
+  const contexto = contextoDe(situacao)
   for (const fala of situacao.mensagens) {
     historico.push({ role: 'user', content: String(fala) })
     await respeitarTeto()
     try {
-      const r = await api('POST', `/api/agents/${id}/simulate`, { messages: historico }, { aviso: `o Cubo aceita ${POR_MINUTO} simulações por minuto` })
+      const r = await api('POST', `/api/agents/${id}/simulate`, { messages: historico, ...contexto }, { aviso: `o Cubo aceita ${POR_MINUTO} simulações por minuto` })
       if (r?.status === 'error' || (!r?.reply && r?.error)) {
         erros++
         turnos.push({ cliente: String(fala), erro: `o agente deu erro: ${r?.error ?? 'sem resposta'}` })
@@ -71,7 +91,10 @@ for (const [i, situacao] of situacoes.entries()) {
       break
     }
   }
-  guardado.exemplos.push({ titulo: situacao.titulo, objetivo: situacao.objetivo ?? null, turnos, rodadoEm: new Date().toISOString() })
+  const guardarContexto = Object.keys(contexto).length
+    ? { negociacao: contexto.dealId ?? null, contato: contexto.personId ?? null, instrucao: contexto.callerInstruction ?? null }
+    : null
+  guardado.exemplos.push({ titulo: situacao.titulo, objetivo: situacao.objetivo ?? null, contexto: guardarContexto, turnos, rodadoEm: new Date().toISOString() })
   gravarJson(arquivo, guardado)
 }
 console.log(`\nCusto total: ${custoTotal.toFixed(2).replace('.', ',')} centavos. Exemplos em ${arquivo}.`)
