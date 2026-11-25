@@ -1,11 +1,11 @@
 // Automação não tem simulação no Cubo. Para dar exemplos, o motor percorre o desenho: cada caminho é
 // uma sequência de passos e as saídas escolhidas. São caminhos LIDOS DO DESENHO, não execuções.
-const ESPECIAIS = new Set(['timeout', 'exhausted', 'ocupada'])
+const ESPECIAIS = new Set(['timeout', 'exhausted', 'ocupada', 'falhou'])
 const LIMITE_DE_PASSOS = 30
 const LIMITE_DE_CAMINHOS = 300
 
 // descricao: a saída do `descrever`. Devolve até `maximo` caminhos que, juntos, passam pelo maior
-// número de passos, preferindo os caminhos comuns (sem "sem resposta" nem "conversa ocupada").
+// número de passos, preferindo os caminhos comuns (sem "sem resposta", "conversa ocupada" nem "falhou").
 export function caminhos(descricao, maximo = 5) {
   const porNumero = new Map(descricao.passos.map((p) => [p.n, p]))
   const inicio = descricao.passos.find((p) => p.tipo === 'start')

@@ -75,9 +75,15 @@ export function armadilhas(fluxo, defs) {
     }
     // Ramo sem destino (menu, switch, condição): o fluxo para ali sem avisar.
     const { saidas } = ligacoes(fluxo, no, defs[no.type])
+    // Na Requisição HTTP, "Falhou" solta não termina em silêncio: a execução para com erro, como antes
+    // de a saída existir. Aviso próprio, e fora do genérico abaixo.
+    const httpSemFalhou = no.type === 'http_request' && saidas.some((s) => s.handle === 'falhou' && !s.destinos.length)
+    if (httpSemFalhou) {
+      acha(no, 'http_sem_falhou', 'Se a chamada falhar (serviço fora do ar, resposta de erro, sem resposta ou credencial desconectada), a execução termina com erro aqui: o que vem depois não acontece e o contato não recebe nada.', 'Ligue a saída “Falhou” a um caminho alternativo (ex.: mandar só o texto, ou avisar alguém). O motivo fica em {{http.status}} e {{http.error}}.', 'nota')
+    }
     const ramificado = saidas.filter((s) => !s.motor).length > 1
     if (ramificado && !TERMINAIS.has(no.type)) {
-      const soltas = saidas.filter((s) => !s.motor && !s.destinos.length && s.handle !== 'timeout' && s.handle !== 'exhausted')
+      const soltas = saidas.filter((s) => !s.motor && !s.destinos.length && s.handle !== 'timeout' && s.handle !== 'exhausted' && !(httpSemFalhou && s.handle === 'falhou'))
       const ligadas = saidas.filter((s) => !s.motor && s.destinos.length)
       if (soltas.length && ligadas.length) {
         const varias = soltas.length > 1
