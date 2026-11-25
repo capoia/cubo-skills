@@ -993,6 +993,38 @@ await caso('editar-agente: agente que já passou do limite é avisado ao ler; o 
   antigo.updatedAt = atualizado
 })
 
+await caso('explicar-fluxo: Requisição HTTP sem "Falhou" ligada avisa que a falha encerra com erro, e os exemplos preferem o caminho de sucesso', async () => {
+  const { armadilhas } = await import(pathToFileURL(join(MOTOR, 'fluxo', 'armadilhas.mjs')).href)
+  const { caminhos } = await import(pathToFileURL(join(MOTOR, 'fluxo', 'caminhos.mjs')).href)
+  const defs = {
+    start: no('start', 'Início', 'flow', [{ handle: null, label: 'Seguir' }]),
+    http_request: no('http_request', 'Requisição HTTP', 'flow', [{ handle: null, label: 'Seguir' }, { handle: 'falhou', label: 'Falhou' }, ocupada]),
+    send_message: no('send_message', 'Enviar mensagem', 'messages', [{ handle: null, label: 'Seguir' }, ocupada]),
+  }
+  const nos = [
+    { id: 'start', type: 'start', data: {} },
+    { id: 'http', type: 'http_request', data: { label: 'Pedir o vídeo' } },
+    { id: 'video', type: 'send_message', data: { label: 'Mandar vídeo' } },
+    { id: 'texto', type: 'send_message', data: { label: 'Só texto' } },
+  ]
+  const semFalhou = { flowData: { nodes: nos, edges: [{ source: 'start', target: 'http' }, { source: 'http', target: 'video' }] } }
+  const achados = armadilhas(semFalhou, defs)
+  const http = achados.filter((a) => a.noId === 'http')
+  confere(http.length === 1 && http[0].codigo === 'http_sem_falhou' && /com erro/.test(http[0].mensagem) && /http\.error/.test(http[0].oQueFazer), JSON.stringify(http))
+
+  const comFalhou = { flowData: { nodes: nos, edges: [...semFalhou.flowData.edges, { source: 'http', target: 'texto', sourceHandle: 'falhou' }] } }
+  confere(!armadilhas(comFalhou, defs).some((a) => a.noId === 'http'), JSON.stringify(armadilhas(comFalhou, defs)))
+
+  const passos = [
+    { n: 1, tipo: 'start', titulo: 'Início', saidas: [{ handle: null, rotulo: 'Seguir', destinos: [2] }] },
+    { n: 2, tipo: 'http_request', titulo: 'Pedir o vídeo', saidas: [{ handle: 'falhou', rotulo: 'Falhou', destinos: [4] }, { handle: null, rotulo: 'Seguir', destinos: [3] }] },
+    { n: 3, tipo: 'send_message', titulo: 'Mandar vídeo', saidas: [] },
+    { n: 4, tipo: 'send_message', titulo: 'Só texto', saidas: [] },
+  ]
+  const [primeiro] = caminhos({ passos }, 1)
+  confere(primeiro.trilha.some((t) => t.saida === 'Seguir' && t.n === 2), JSON.stringify(primeiro))
+})
+
 servidor.close()
 console.log(`fumaça fluxo-agente em ${process.platform} (Node ${process.versions.node})`)
 console.log(resultados.join('\n'))

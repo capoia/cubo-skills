@@ -30,7 +30,7 @@ IDs no `triggerConfig` vão como **número** (`"pipeIds": [30]`, não `["30"]`).
 | `renomear` | `nome` | muda o nome do fluxo |
 
 - `no`, `de`, `para`, `depoisDe`: o **id** do nó (o roteiro mostra) ou o **título** exato.
-- `saida`: o handle (`yes`, `no`, `timeout`, o `targetHandle` da opção do menu, o `id` do caso do
+- `saida`: o handle (`yes`, `no`, `timeout`, `falhou`, o `targetHandle` da opção do menu, o `id` do caso do
   switch) ou o rótulo ("Sim", "Sem resposta"). Vazio é a saída comum ("Seguir"). Se errar, o motor
   diz quais saídas o nó tem.
 - O nó do início tem id `start`.
