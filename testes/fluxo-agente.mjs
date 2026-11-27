@@ -1025,6 +1025,28 @@ await caso('explicar-fluxo: Requisição HTTP sem "Falhou" ligada avisa que a fa
   confere(primeiro.trilha.some((t) => t.saida === 'Seguir' && t.n === 2), JSON.stringify(primeiro))
 })
 
+await caso('prévia: o id é reconhecido pelo caminho inteiro; campos que terminam em "value" não herdam o tipo um do outro', async () => {
+  const { refsLocais } = await import(pathToFileURL(join(MOTOR, 'fluxo', 'descrever.mjs')).href)
+  // O catálogo do CRM declara só o que aparece no exemplo do passo: no "Criar negociação", o funil.
+  const defs = {
+    create_deal: no('create_deal', 'Criar negociação', 'deals', [{ handle: null, label: 'Seguir' }, ocupada], { refs: [{ path: 'fields.pipeId.value', kind: 'pipe' }, { path: 'tags[0]', kind: 'tag' }] }),
+    send_whatsapp_template: no('send_whatsapp_template', 'Enviar template WhatsApp', 'messages', [{ handle: null, label: 'Seguir' }, ocupada], { refs: [{ path: 'templateId', kind: 'template' }] }),
+  }
+  const gatilhos = { deal_updated: { refs: [{ path: 'pipeIds[0]', kind: 'pipe' }, { path: 'stageIds[0]', kind: 'stage' }] } }
+  const fluxo = { flowData: { nodes: [
+    { id: 'start', type: 'start', data: { triggers: [{ triggerType: 'deal_updated', triggerConfig: { pipeIds: [30], stageIds: [41, 42] } }] } },
+    { id: 'cria', type: 'create_deal', data: { fields: { pipeId: { mode: 'override', value: '30' }, stageId: { mode: 'override', value: '42' }, userId: { mode: 'override', value: '7' } }, tags: [5, 6] } },
+    { id: 'tpl', type: 'send_whatsapp_template', data: { templateId: 90 } },
+  ], edges: [] } }
+  const refs = refsLocais(fluxo, defs, gatilhos)
+  const de = (trecho) => refs.filter((r) => r.path.includes(trecho)).map((r) => `${r.kind}:${r.id}`)
+  confere(JSON.stringify(de('fields.pipeId')) === '["pipe:30"]', JSON.stringify(refs))
+  confere(de('fields.stageId').length === 0 && de('fields.userId').length === 0, `estágio e responsável não são funil: ${JSON.stringify(refs)}`)
+  confere(JSON.stringify(de('.tags[')) === '["tag:5","tag:6"]', JSON.stringify(refs))
+  confere(JSON.stringify(de('stageIds')) === '["stage:41","stage:42"]' && JSON.stringify(de('pipeIds')) === '["pipe:30"]', JSON.stringify(refs))
+  confere(JSON.stringify(de('templateId')) === '["template:90"]', JSON.stringify(refs))
+})
+
 servidor.close()
 console.log(`fumaça fluxo-agente em ${process.platform} (Node ${process.versions.node})`)
 console.log(resultados.join('\n'))
